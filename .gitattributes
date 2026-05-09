@@ -1,0 +1,5 @@
+*.sv linguist-language=SystemVerilog
+*.svh linguist-language=SystemVerilog
+*.vhd linguist-language=VHDL
+*.vhdl linguist-language=VHDL
+SYNTH_REPORT.md linguist-generated=true

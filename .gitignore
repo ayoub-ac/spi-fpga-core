@@ -1,0 +1,37 @@
+# Verilator build outputs
+obj_dir/
+obj_dir_*/
+
+# Synthesis report intermediate files (the SYNTH_REPORT.md is committed; the
+# raw per-tool logs are not)
+synth_report/
+synth_*.log
+# Test artefacts
+test.log
+test_*.log
+# Waveforms
+*.vcd
+*.fst
+*.gtkw
+# Vendor projects
+*.xpr
+*.runs/
+*.cache/
+*.hw/
+*.ip_user_files/
+*.sim/
+*.qpf
+*.qsf
+*.qws
+db/
+incremental_db/
+# Editors
+.vscode/
+.idea/
+*.swp
+*~
+# OS junk
+.DS_Store
+Thumbs.db
+# Private runbook - owner-only, never publish
+LAUNCH.md
