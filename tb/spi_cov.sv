@@ -33,26 +33,32 @@ module spi_cov #(
   input  logic                  m_tx_empty,
   input  logic                  m_rx_full,
   input  logic                  m_rx_empty,
-  input  logic [NUM_CS-1:0]     cs_n
+  input  logic [NUM_CS-1:0]     cs_n,
+
+  // Bins packed for the C++ harness, bit order as listed in the header.
+  output logic [11:0]           bins_o
 );
 
-  logic c_mode0           /*verilator public*/;
-  logic c_mode1           /*verilator public*/;
-  logic c_mode2           /*verilator public*/;
-  logic c_mode3           /*verilator public*/;
-  logic c_msb_first       /*verilator public*/;
-  logic c_lsb_first       /*verilator public*/;
-  logic c_tx_full         /*verilator public*/;
-  logic c_tx_empty        /*verilator public*/;
-  logic c_rx_full         /*verilator public*/;
-  logic c_rx_empty        /*verilator public*/;
-  logic c_slave_responded /*verilator public*/;
-  logic c_cs1_used        /*verilator public*/;
+  logic c_mode0;
+  logic c_mode1;
+  logic c_mode2;
+  logic c_mode3;
+  logic c_msb_first;
+  logic c_lsb_first;
+  logic c_tx_full;
+  logic c_tx_empty;
+  logic c_rx_full;
+  logic c_rx_empty;
+  logic c_slave_responded;
+  logic c_cs1_used;
 
   // Coverage bins are sticky across reset by design: the harness
   // resets the DUT between tests, but the coverage report aggregates
-  // every test in the regression.
-  always_ff @(posedge clk_i) begin
+  // every test in the regression. The bins start at 0 from the initial
+  // block below, so they are written by two processes; a plain `always`
+  // (not `always_ff`, which requires a single driver, IEEE 1800 9.2.2.4)
+  // is the matching construct for this simulation-only state.
+  always @(posedge clk_i) begin
     begin
       // Mode bins: tagged on a completed transfer.
       if (m_done) begin
@@ -85,6 +91,10 @@ module spi_cov #(
     c_rx_full = 1'b0; c_rx_empty = 1'b0;
     c_slave_responded = 1'b0; c_cs1_used = 1'b0;
   end
+
+  assign bins_o = {c_cs1_used, c_slave_responded, c_rx_empty, c_rx_full,
+                   c_tx_empty, c_tx_full, c_lsb_first, c_msb_first,
+                   c_mode3, c_mode2, c_mode1, c_mode0};
 
   logic _unused;
   assign _unused = &{1'b0, m_busy, s_busy};

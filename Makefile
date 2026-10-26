@@ -5,10 +5,15 @@
 #                        top + axi4lite_slave + axi4lite_regfile + spi_axi4lite)
 #   make sim             build the spi_top simulator
 #   make test            build + run sim, check for "+PASS"
-#   make synth           Yosys: ice40 + ecp5 + xilinx generic for spi_top
+#   make synth           Yosys: ice40 + ecp5 + xilinx generic for spi_top (no P&R)
 #   make synth_report    run all available toolchains and emit SYNTH_REPORT.md
-#   make vhdl-test       GHDL+Verilator co-sim of the VHDL wrapper (if installed)
+#   make vhdl-test       GHDL analysis + mixed-language elaboration check of the
+#                        VHDL wrapper (if installed; not a simulation)
 #   make clean           remove build artifacts
+
+# Recipes such as `sim | tee log` must fail when the first command fails.
+SHELL       := bash
+.SHELLFLAGS := -o pipefail -c
 
 VERILATOR ?= verilator
 YOSYS     ?= yosys
@@ -45,7 +50,7 @@ lint:
 sim: obj_dir/Vspi_top_tb
 
 obj_dir/Vspi_top_tb: $(RTL_CORE) $(TB_TOP) $(TB_AUX) $(TB_CPP)
-	$(VERILATOR) --cc --exe --build $(VFLAGS) --assert --public-flat-rw \
+	$(VERILATOR) --cc --exe --build $(VFLAGS) --assert \
 	    --top-module spi_top_tb \
 	    $(RTL_CORE) $(TB_TOP) $(TB_AUX) $(TB_CPP) \
 	    -o Vspi_top_tb
@@ -60,14 +65,14 @@ synth:
 	    | tee synth_ice40.log
 	$(YOSYS) -p "read_verilog -sv $(RTL_CORE); hierarchy -top spi_top; synth_ecp5 -top spi_top -abc9; stat" \
 	    | tee synth_ecp5.log
-	$(YOSYS) -p "read_verilog -sv $(RTL_CORE); hierarchy -top spi_top; synth_xilinx -top spi_top; stat" \
+	$(YOSYS) -p "read_verilog -sv $(RTL_CORE); hierarchy -top spi_top; synth_xilinx -top spi_top -flatten; stat" \
 	    | tee synth_xilinx.log
 
 # ---------- Cross-toolchain synthesis report --------------------------------
 synth_report:
 	@bash scripts/synth_report.sh
 
-# ---------- VHDL co-sim (optional) ------------------------------------------
+# ---------- VHDL wrapper check (optional) ------------------------------------
 vhdl-test:
 	@which $(GHDL) >/dev/null 2>&1 || { echo "ghdl not installed - skipping vhdl-test"; exit 0; }
 	@which $(VERILATOR) >/dev/null 2>&1 || { echo "verilator not installed"; exit 1; }
@@ -77,4 +82,4 @@ clean:
 	rm -rf obj_dir \
 	    test.log \
 	    synth_ice40.log synth_ecp5.log synth_xilinx.log \
-	    synth_report/ SYNTH_REPORT.md
+	    synth_report/ build/

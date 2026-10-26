@@ -21,9 +21,6 @@
 
 #include "verilated.h"
 #include "Vspi_top_tb.h"
-#include "Vspi_top_tb___024root.h"
-#include "Vspi_top_tb_spi_top_tb.h"
-#include "Vspi_top_tb_spi_cov__D8_N4.h"
 
 // ---------------------------------------------------------------------------
 // Sim primitives
@@ -357,20 +354,23 @@ static void test_random_1000(Vspi_top_tb* dut) {
 // Coverage report
 // ---------------------------------------------------------------------------
 static void report_coverage(const Vspi_top_tb* dut) {
-    auto* cov = dut->rootp->spi_top_tb->u_cov;
+    // Bins come through the cov_bins_o port (bit order in tb/spi_cov.sv), so
+    // the harness does not depend on Verilator's generated class names.
+    const uint32_t cov = dut->cov_bins_o;
+    auto bin = [cov](int bit) { return static_cast<uint8_t>((cov >> bit) & 1u); };
     struct Bin { const char* name; uint8_t hit; };
     Bin bins[] = {
-        {"mode0",            cov->c_mode0},
-        {"mode1",            cov->c_mode1},
-        {"mode2",            cov->c_mode2},
-        {"mode3",            cov->c_mode3},
-        {"msb_first",        cov->c_msb_first},
-        {"lsb_first",        cov->c_lsb_first},
-        {"tx_full",          cov->c_tx_full},
-        {"tx_empty",         cov->c_tx_empty},
-        {"rx_empty",         cov->c_rx_empty},
-        {"slave_responded",  cov->c_slave_responded},
-        {"cs1_used",         cov->c_cs1_used},
+        {"mode0",            bin(0)},
+        {"mode1",            bin(1)},
+        {"mode2",            bin(2)},
+        {"mode3",            bin(3)},
+        {"msb_first",        bin(4)},
+        {"lsb_first",        bin(5)},
+        {"tx_full",          bin(6)},
+        {"tx_empty",         bin(7)},
+        {"rx_empty",         bin(9)},
+        {"slave_responded",  bin(10)},
+        {"cs1_used",         bin(11)},
     };
     int total = sizeof(bins) / sizeof(bins[0]);
     int hit = 0;
