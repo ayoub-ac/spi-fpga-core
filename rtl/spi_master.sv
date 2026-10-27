@@ -80,6 +80,8 @@ module spi_master #(
   logic                          tx_fifo_rd_en;
   logic [DATA_WIDTH-1:0]         tx_fifo_rdata;
   logic                          tx_fifo_empty;
+  logic                          tx_fifo_overflow;   // unused: the user honours tx_full_o
+  logic                          tx_fifo_underflow;  // unused: pops only when not empty
 
   spi_fifo #(.WIDTH(DATA_WIDTH), .DEPTH(FIFO_DEPTH)) u_tx_fifo (
     .clk_i    (clk_i),
@@ -90,12 +92,16 @@ module spi_master #(
     .rd_data_o(tx_fifo_rdata),
     .empty_o  (tx_fifo_empty),
     .full_o   (tx_full_o),
-    .count_o  (tx_count_o)
+    .count_o  (tx_count_o),
+    .overflow_o (tx_fifo_overflow),
+    .underflow_o(tx_fifo_underflow)
   );
   assign tx_empty_o = tx_fifo_empty;
 
   logic                          rx_fifo_wr_en;
   logic [DATA_WIDTH-1:0]         rx_fifo_wdata;
+  logic                          rx_fifo_overflow;
+  logic                          rx_fifo_underflow;  // unused
 
   spi_fifo #(.WIDTH(DATA_WIDTH), .DEPTH(FIFO_DEPTH)) u_rx_fifo (
     .clk_i    (clk_i),
@@ -106,7 +112,9 @@ module spi_master #(
     .rd_data_o(rx_rdata_o),
     .empty_o  (rx_empty_o),
     .full_o   (rx_full_o),
-    .count_o  (rx_count_o)
+    .count_o  (rx_count_o),
+    .overflow_o (rx_fifo_overflow),
+    .underflow_o(rx_fifo_underflow)
   );
 
   // -----------------------------------------------------------------
