@@ -97,6 +97,7 @@ module spi_axi4lite #(
   logic                              spi_start;
   logic                              spi_busy;
   logic                              spi_done;
+  logic                              spi_rx_overrun;
   logic                              tx_we;
   logic [SPI_DATA_W-1:0]             tx_wdata;
   logic                              tx_full;
@@ -112,7 +113,7 @@ module spi_axi4lite #(
   logic                              cfg_cpha;
   logic                              cfg_lsb_first;
   logic                              cfg_inter_byte;
-  logic [$clog2(NUM_CS)-1:0]         cfg_cs_sel;
+  logic [((NUM_CS > 1) ? $clog2(NUM_CS) : 1)-1:0] cfg_cs_sel;
   logic [CS_DLY_W-1:0]               cfg_cs_setup;
   logic [CS_DLY_W-1:0]               cfg_cs_hold;
   logic [DIV_WIDTH-1:0]              cfg_clk_div;
@@ -150,7 +151,8 @@ module spi_axi4lite #(
     .sck_o             (sck_o),
     .mosi_o            (mosi_o),
     .miso_i            (miso_i),
-    .cs_n_o            (cs_n_o)
+    .cs_n_o            (cs_n_o),
+    .rx_overrun_o      (spi_rx_overrun)
   );
 
   // ----------------------------------------------------------------
@@ -235,7 +237,7 @@ module spi_axi4lite #(
   assign cfg_cpol       = ctrl_word[2];
   assign cfg_cpha       = ctrl_word[3];
   assign cfg_inter_byte = ctrl_word[4];
-  assign cfg_cs_sel     = ctrl_word[8 +: $clog2(NUM_CS)];
+  assign cfg_cs_sel     = ctrl_word[8 +: ((NUM_CS > 1) ? $clog2(NUM_CS) : 1)];
   assign cfg_cs_setup   = ctrl_word[16 +: CS_DLY_W];
   assign cfg_cs_hold    = ctrl_word[24 +: CS_DLY_W];
   assign cfg_clk_div    = clk_div_word[DIV_WIDTH-1:0];
@@ -294,8 +296,8 @@ module spi_axi4lite #(
       if (tx_empty) irq_stat_q[0] <= 1'b1;
       if (rx_full)  irq_stat_q[1] <= 1'b1;
       if (spi_done) irq_stat_q[2] <= 1'b1;
-      // err = overrun: rx_full at the same time another byte completes
-      if (rx_full && spi_done) irq_stat_q[3] <= 1'b1;
+      // err = overrun: a received word was dropped (RX FIFO full)
+      if (spi_rx_overrun) irq_stat_q[3] <= 1'b1;
       // Software ack via W1C on register 2
       if (wr_event && (wr_event_addr[ADDR_WIDTH-1:2] == 'd2)) begin
         if (tx_data_word[0]) irq_stat_q[0] <= 1'b0;  // shares the wdata bus

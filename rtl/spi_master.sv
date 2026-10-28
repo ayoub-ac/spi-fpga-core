@@ -3,8 +3,13 @@
 // SPI master controller.
 //
 // Implements the four classical Motorola SPI modes (CPOL x CPHA = 4 modes)
-// with parametrizable word width (4..32 bits), parametrizable chip-select
-// count, programmable clock divider, and MSB-first / LSB-first selection.
+// with parametrizable word width (DATA_WIDTH >= 2; 4..32 bits verified),
+// parametrizable chip-select count (NUM_CS >= 1), programmable clock
+// divider, and MSB-first / LSB-first selection.
+//
+// cs_sel_i is $clog2(NUM_CS) bits wide, and 1 bit (ignored) for NUM_CS = 1.
+// A cs_sel_i value >= NUM_CS asserts no chip select; the transfer still
+// runs.
 //
 // Mode legend (Motorola SPI block guide MOTOROLA M68HC11 §8.5):
 //
@@ -47,7 +52,7 @@ module spi_master #(
   input  logic                          cpha_i,
   input  logic                          lsb_first_i,
   input  logic [DIV_WIDTH-1:0]          clk_div_i,
-  input  logic [$clog2(NUM_CS)-1:0]     cs_sel_i,
+  input  logic [((NUM_CS > 1) ? $clog2(NUM_CS) : 1)-1:0] cs_sel_i,
   input  logic [CS_DLY_W-1:0]           cs_setup_cycles_i,
   input  logic [CS_DLY_W-1:0]           cs_hold_cycles_i,
   input  logic                          cs_inter_byte_i,
@@ -71,8 +76,36 @@ module spi_master #(
   output logic                          sck_o,
   output logic                          mosi_o,
   input  logic                          miso_i,
-  output logic [NUM_CS-1:0]             cs_n_o
+  output logic [NUM_CS-1:0]             cs_n_o,
+
+  // One-cycle pulse, one clock after a received word was dropped because
+  // the RX FIFO was full (and not read in the same cycle).
+  output logic                          rx_overrun_o
 );
+
+  // -----------------------------------------------------------------
+  // Parameter checks (stop elaboration in Yosys, Verilator and Icarus)
+  // -----------------------------------------------------------------
+  if (DATA_WIDTH < 2) begin : g_bad_data_width
+    $error("spi_master: DATA_WIDTH must be >= 2");
+    spi_master_illegal_parameter_DATA_WIDTH_must_be_at_least_2 u_param_error ();
+  end
+  if (NUM_CS < 1) begin : g_bad_num_cs
+    $error("spi_master: NUM_CS must be >= 1");
+    spi_master_illegal_parameter_NUM_CS_must_be_at_least_1 u_param_error ();
+  end
+  if (DIV_WIDTH < 1) begin : g_bad_div_width
+    $error("spi_master: DIV_WIDTH must be >= 1");
+    spi_master_illegal_parameter_DIV_WIDTH_must_be_at_least_1 u_param_error ();
+  end
+  if (CS_DLY_W < 1) begin : g_bad_cs_dly_w
+    $error("spi_master: CS_DLY_W must be >= 1");
+    spi_master_illegal_parameter_CS_DLY_W_must_be_at_least_1 u_param_error ();
+  end
+
+  localparam int unsigned CS_SEL_W = (NUM_CS > 1) ? $clog2(NUM_CS) : 1;
+  localparam int unsigned EDGE_W   = $clog2(2 * DATA_WIDTH + 1);  // 0..2*DATA_WIDTH
+  localparam int unsigned BIT_W    = $clog2(DATA_WIDTH + 1);      // 0..DATA_WIDTH
 
   // -----------------------------------------------------------------
   // FIFOs
@@ -130,26 +163,31 @@ module spi_master #(
   } state_e;
 
   state_e state_q, state_d;
+  logic   start_pend_q;   // start seen while SCK was moving to a new CPOL
 
   logic                       cpol_q, cpha_q, lsb_q;
   logic [DIV_WIDTH-1:0]       div_q;
-  logic [$clog2(NUM_CS)-1:0]  cs_sel_q;
+  logic [CS_SEL_W-1:0]        cs_sel_q;
   logic [CS_DLY_W-1:0]        setup_q, hold_q;
   logic                       inter_byte_q;
 
   logic [DIV_WIDTH-1:0]       div_cnt_q;
-  logic [$clog2(2*32+2)-1:0]  edge_cnt_q;     // 0..2*DATA_WIDTH
-  logic [$clog2(33)-1:0]      sample_cnt_q;   // bits sampled so far
+  logic [EDGE_W-1:0]          edge_cnt_q;     // 0..2*DATA_WIDTH
+  logic [BIT_W-1:0]           sample_cnt_q;   // bits sampled so far
   logic [CS_DLY_W:0]          dly_cnt_q;
   logic                       sck_q;
   logic [DATA_WIDTH-1:0]      tx_shift_q;
   logic [DATA_WIDTH-1:0]      rx_shift_q;
 
+  function automatic logic [DATA_WIDTH-1:0] bit_reverse(input logic [DATA_WIDTH-1:0] v);
+    for (int i = 0; i < DATA_WIDTH; i++) bit_reverse[i] = v[DATA_WIDTH-1-i];
+  endfunction
+
   logic                       sck_tick;
   assign sck_tick = (div_cnt_q == '0);
 
-  logic [$clog2(2*32+2)-1:0]  edge_cnt_max;
-  assign edge_cnt_max = ($clog2(2*32+2))'(2*DATA_WIDTH);
+  logic [EDGE_W-1:0]          edge_cnt_max;
+  assign edge_cnt_max = EDGE_W'(2*DATA_WIDTH);
 
   // -----------------------------------------------------------------
   // Combinational next-state.
@@ -158,7 +196,10 @@ module spi_master #(
     state_d = state_q;
     case (state_q)
       S_IDLE: begin
-        if (start_i && !tx_fifo_empty)
+        // Launch only once SCK already rests at the requested CPOL, so
+        // CS_n never falls on the same clock edge as an SCK level change.
+        // A start that arrives while SCK is still moving is kept pending.
+        if ((start_i || start_pend_q) && !tx_fifo_empty && (sck_q == cpol_i))
           state_d = S_LOAD_WAIT;
       end
       S_LOAD_WAIT: begin
@@ -219,18 +260,31 @@ module spi_master #(
     end
   end
 
-  // CS active when transferring (LOAD_WAIT through CS_HOLD).
-  always_comb begin
-    cs_n_o = '1;
-    if (state_q == S_LOAD_WAIT || state_q == S_CS_SETUP ||
-        state_q == S_SHIFT     || state_q == S_CS_HOLD)
-      cs_n_o[cs_sel_q] = 1'b0;
+  // CS active when transferring (LOAD_WAIT through CS_HOLD). CS_n comes
+  // straight from flip-flops loaded from the next state, so the timing is
+  // unchanged but a multi-bit state change (e.g. SHIFT 011 -> CS_HOLD 100)
+  // can no longer glitch the selected line high or an idle line low.
+  logic [NUM_CS-1:0]          cs_n_q;
+  logic [CS_SEL_W-1:0]        cs_sel_d;
+  logic                       cs_active_d;
+  assign cs_sel_d    = (state_q == S_IDLE) ? cs_sel_i : cs_sel_q;
+  assign cs_active_d = (state_d == S_LOAD_WAIT) || (state_d == S_CS_SETUP) ||
+                       (state_d == S_SHIFT)     || (state_d == S_CS_HOLD);
+  always_ff @(posedge clk_i) begin
+    if (!rst_ni) cs_n_q <= '1;
+    else begin
+      for (int i = 0; i < NUM_CS; i++)
+        cs_n_q[i] <= !(cs_active_d && (NUM_CS == 1 || cs_sel_d == CS_SEL_W'(i)));
+    end
   end
+  assign cs_n_o = cs_n_q;
 
-  // mosi and sck.
-  assign mosi_o = (state_q == S_SHIFT)
-                    ? (lsb_q ? tx_shift_q[0] : tx_shift_q[DATA_WIDTH-1])
-                    : 1'b0;
+  // MOSI comes straight from the MSB of the TX shift register (the word
+  // is loaded bit-reversed for LSB-first). The register only changes on
+  // a load or a shift edge, so MOSI keeps the last bit through CS_HOLD
+  // and while idle: the receiver gets the full hold time after the final
+  // CPHA=1 sampling edge, and MOSI never toggles while all CS_n are high.
+  assign mosi_o = tx_shift_q[DATA_WIDTH-1];
   assign sck_o  = sck_q;
 
   // -----------------------------------------------------------------
@@ -251,17 +305,24 @@ module spi_master #(
       edge_cnt_q      <= '0;
       sample_cnt_q    <= '0;
       dly_cnt_q       <= '0;
-      sck_q           <= 1'b0;
+      // SCK idles at CPOL from reset on (cpol_i is expected to be
+      // stable while rst_ni is low).
+      sck_q           <= cpol_i;
+      start_pend_q    <= 1'b0;
       tx_shift_q      <= '0;
       rx_shift_q      <= '0;
       rx_fifo_wr_en_q <= 1'b0;
       rx_fifo_wdata_q <= '0;
       busy_o          <= 1'b0;
       xfer_done_o     <= 1'b0;
+      rx_overrun_o    <= 1'b0;
     end else begin
       state_q         <= state_d;
+      start_pend_q    <= (state_q == S_IDLE) && (state_d == S_IDLE) &&
+                         (start_i || start_pend_q) && !tx_fifo_empty;
       busy_o          <= (state_d != S_IDLE);
       xfer_done_o     <= (state_q == S_DONE);
+      rx_overrun_o    <= rx_fifo_overflow;
       rx_fifo_wr_en_q <= 1'b0;
 
       // Latch configuration on transition out of IDLE into LOAD_WAIT.
@@ -274,7 +335,6 @@ module spi_master #(
         setup_q      <= cs_setup_cycles_i;
         hold_q       <= cs_hold_cycles_i;
         inter_byte_q <= cs_inter_byte_i;
-        sck_q        <= cpol_i;
         rx_shift_q   <= '0;
         edge_cnt_q   <= '0;
         div_cnt_q    <= clk_div_i;
@@ -282,7 +342,7 @@ module spi_master #(
 
       // Capture FIFO output one cycle after rd_en.
       if (state_q == S_LOAD_WAIT) begin
-        tx_shift_q   <= tx_fifo_rdata;
+        tx_shift_q   <= lsb_q ? bit_reverse(tx_fifo_rdata) : tx_fifo_rdata;
         rx_shift_q   <= '0;
         edge_cnt_q   <= '0;
         sample_cnt_q <= '0;
@@ -327,14 +387,12 @@ module spi_master #(
           if (cpha_q == 1'b0) begin
             // Mode 0/2: even=sample (handled below), odd=shift.
             if (edge_cnt_q[0] && (edge_cnt_q != edge_cnt_max - 1'b1)) begin
-              tx_shift_q <= lsb_q ? {1'b0, tx_shift_q[DATA_WIDTH-1:1]}
-                                  : {tx_shift_q[DATA_WIDTH-2:0], 1'b0};
+              tx_shift_q <= {tx_shift_q[DATA_WIDTH-2:0], 1'b0};
             end
           end else begin
             // Mode 1/3: even=shift (skip first), odd=sample (below).
             if (!edge_cnt_q[0] && (edge_cnt_q != '0)) begin
-              tx_shift_q <= lsb_q ? {1'b0, tx_shift_q[DATA_WIDTH-1:1]}
-                                  : {tx_shift_q[DATA_WIDTH-2:0], 1'b0};
+              tx_shift_q <= {tx_shift_q[DATA_WIDTH-2:0], 1'b0};
             end
           end
           if (do_sample_w) begin
@@ -349,12 +407,11 @@ module spi_master #(
           div_cnt_q <= div_cnt_q - 1'b1;
         end
       end else begin
-        // Outside SHIFT, hold SCK at the latched idle polarity. We
-        // snap sck_q to the new cpol only at the moment of transfer
-        // launch (IDLE -> LOAD_WAIT) — see the launch-latching block
-        // above. While idle we leave sck_q where it was so the SVA
-        // can verify that SCK never toggles while CS is high.
-        if (state_q != S_IDLE && state_d != S_SHIFT) sck_q <= cpol_q;
+        // Outside SHIFT, SCK rests at the idle level: the latched CPOL
+        // during a transfer, the live cpol_i while idle (all CS_n high),
+        // so SCK already sits at the new CPOL before the next CS_n falls.
+        if (state_q == S_IDLE)        sck_q <= cpol_i;
+        else if (state_d != S_SHIFT)  sck_q <= cpol_q;
         // Reload divider so SHIFT starts with a fresh count.
         if (state_d == S_SHIFT)       div_cnt_q <= div_q;
         else                          div_cnt_q <= '0;

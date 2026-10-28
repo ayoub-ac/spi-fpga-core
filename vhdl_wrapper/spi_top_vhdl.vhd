@@ -10,6 +10,8 @@ library ieee;
 package spi_top_vhdl_pkg is
   -- Same result as SystemVerilog $clog2 for n >= 1.
   function clog2 (n : positive) return natural;
+  -- Width of m_cs_sel_i in spi_top: $clog2(NUM_CS), at least 1.
+  function sel_width (n : positive) return positive;
 end package spi_top_vhdl_pkg;
 
 package body spi_top_vhdl_pkg is
@@ -23,6 +25,14 @@ package body spi_top_vhdl_pkg is
     end loop;
     return r;
   end function clog2;
+
+  function sel_width (n : positive) return positive is
+  begin
+    if n > 1 then
+      return clog2(n);
+    end if;
+    return 1;
+  end function sel_width;
 end package body spi_top_vhdl_pkg;
 
 library ieee;
@@ -46,7 +56,7 @@ entity spi_top_vhdl is
     m_cpha_i          : in  std_logic;
     m_lsb_first_i     : in  std_logic;
     m_clk_div_i       : in  std_logic_vector(DIV_WIDTH-1 downto 0);
-    m_cs_sel_i        : in  std_logic_vector(clog2(NUM_CS)-1 downto 0);
+    m_cs_sel_i        : in  std_logic_vector(sel_width(NUM_CS)-1 downto 0);
     m_cs_setup_i      : in  std_logic_vector(CS_DLY_W-1 downto 0);
     m_cs_hold_i       : in  std_logic_vector(CS_DLY_W-1 downto 0);
     m_cs_inter_byte_i : in  std_logic;
@@ -110,7 +120,7 @@ architecture rtl of spi_top_vhdl is
       m_cpha_i          : in  std_logic;
       m_lsb_first_i     : in  std_logic;
       m_clk_div_i       : in  std_logic_vector(DIV_WIDTH-1 downto 0);
-      m_cs_sel_i        : in  std_logic_vector(clog2(NUM_CS)-1 downto 0);
+      m_cs_sel_i        : in  std_logic_vector(sel_width(NUM_CS)-1 downto 0);
       m_cs_setup_i      : in  std_logic_vector(CS_DLY_W-1 downto 0);
       m_cs_hold_i       : in  std_logic_vector(CS_DLY_W-1 downto 0);
       m_cs_inter_byte_i : in  std_logic;
@@ -154,11 +164,6 @@ architecture rtl of spi_top_vhdl is
   end component;
 
 begin
-
-  -- spi_top declares cs_sel as [$clog2(NUM_CS)-1:0], which is [-1:0]
-  -- for NUM_CS = 1 and has no VHDL equivalent.
-  assert NUM_CS >= 2
-    report "spi_top_vhdl: NUM_CS must be >= 2" severity failure;
 
   u_top : spi_top
     generic map (

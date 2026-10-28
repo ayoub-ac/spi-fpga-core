@@ -2,16 +2,18 @@
 //
 // SPI protocol assertions (Motorola SPI block guide §8.5).
 //
-// Properties (8 total):
-//   p_cs_before_sck      SCK does not toggle while CS is high (idle).
+// Properties (10 total):
+//   p_sck_idle_to_cpol   While CS is high (idle), SCK only changes to move to
+//                        the configured CPOL; it never pulses.
+//   p_sck_idle_polarity  After two idle cycles, SCK equals CPOL.
+//   p_sck_quiet_cs_fall  SCK does not change on the clock edge where a CS
+//                        line asserts.
 //   p_no_data_when_idle  MOSI does not toggle while all CS lines are high.
 //   p_cs_one_hot_active  At most one CS line is asserted (low) at a time.
 //   p_busy_during_xfer   m_busy stays high for the full window between the
 //                        first CS-fall and the matching CS-rise.
 //   p_done_after_busy    m_done pulses only when m_busy was high in the
 //                        previous cycle (i.e., a real transfer just ended).
-//   p_sck_idle_polarity  Outside a transfer, SCK matches CPOL (the idle
-//                        level the master is configured for).
 //   p_no_done_when_idle  m_done does not pulse while m_busy is low (no
 //                        spurious done signals).
 //   p_done_pulse_oneshot m_done is exactly one cycle wide.
@@ -26,7 +28,8 @@ module spi_assertions #(
   input logic               miso,
   input logic [NUM_CS-1:0]  cs_n,
   input logic               m_busy,
-  input logic               m_done
+  input logic               m_done,
+  input logic               cpol        // master cpol_i
 );
 `ifndef SYNTHESIS
 
@@ -45,16 +48,38 @@ module spi_assertions #(
   logic sck_edge;
   assign sck_edge = post_reset_q && (sck ^ sck_q);
 
-  // ---- p_cs_before_sck ----
-  // No SCK edge while the bus is idle (all CS high). The master must
-  // assert at least one CS BEFORE driving SCK. We allow the first
-  // cycle after reset to be ignored (sck snaps to CPOL on first cycle).
-  property p_cs_before_sck;
+  // ---- p_sck_idle_to_cpol ----
+  // While the bus is idle (all CS high) SCK may change only to follow a
+  // CPOL change (the master parks SCK at cpol_i while idle, so it is at
+  // the idle level before the next CS falls). Any other idle SCK edge,
+  // and any SCK pulse, is a bug.
+  property p_sck_idle_to_cpol;
     @(posedge clk_i) disable iff (!rst_ni)
-      cs_idle && post_reset_q && $past(post_reset_q) |-> !sck_edge;
+      cs_idle && sck_edge |-> (sck == $past(cpol));
   endproperty
-  a_cs_before_sck: assert property (p_cs_before_sck)
-    else $error("spi: SCK toggled while CS idle");
+  a_sck_idle_to_cpol: assert property (p_sck_idle_to_cpol)
+    else $error("spi: SCK toggled while CS idle without a CPOL change");
+
+  // ---- p_sck_idle_polarity ----
+  // After two idle cycles SCK sits at CPOL (one cycle to leave the last
+  // transfer, one to follow a CPOL change).
+  property p_sck_idle_polarity;
+    @(posedge clk_i) disable iff (!rst_ni)
+      post_reset_q && cs_idle && $past(cs_idle) && $past(cs_idle, 2)
+        |-> (sck == $past(cpol));
+  endproperty
+  a_sck_idle_polarity: assert property (p_sck_idle_polarity)
+    else $error("spi: SCK not at CPOL while idle");
+
+  // ---- p_sck_quiet_cs_fall ----
+  // A CS line never asserts on the same clock edge as an SCK change, so a
+  // slave cannot see a spurious first edge.
+  property p_sck_quiet_cs_fall;
+    @(posedge clk_i) disable iff (!rst_ni)
+      post_reset_q && $past(cs_idle) && !cs_idle |-> !sck_edge;
+  endproperty
+  a_sck_quiet_cs_fall: assert property (p_sck_quiet_cs_fall)
+    else $error("spi: SCK changed on the CS-fall clock edge");
 
   // ---- p_cs_one_hot_active ----
   // At any cycle, no more than one CS line is low.

@@ -14,7 +14,8 @@
 //   irq_tx_empty    TX FIFO empty (controller can refill)
 //   irq_rx_full     RX FIFO full  (controller must drain or risk overrun)
 //   irq_done        one-cycle pulse on each completed transfer
-//   irq_err         FIFO push to a full RX FIFO (overrun)
+//   irq_err         one-cycle pulse when a received word was dropped
+//                   because the master RX FIFO was full (overrun)
 
 module spi_top #(
   parameter int unsigned DATA_WIDTH = 8,
@@ -31,7 +32,7 @@ module spi_top #(
   input  logic                          m_cpha_i,
   input  logic                          m_lsb_first_i,
   input  logic [DIV_WIDTH-1:0]          m_clk_div_i,
-  input  logic [$clog2(NUM_CS)-1:0]     m_cs_sel_i,
+  input  logic [((NUM_CS > 1) ? $clog2(NUM_CS) : 1)-1:0] m_cs_sel_i,
   input  logic [CS_DLY_W-1:0]           m_cs_setup_i,
   input  logic [CS_DLY_W-1:0]           m_cs_hold_i,
   input  logic                          m_cs_inter_byte_i,
@@ -86,6 +87,7 @@ module spi_top #(
 
   logic              sck_w, mosi_w, miso_w;
   logic [NUM_CS-1:0] cs_n_w;
+  logic              m_rx_overrun_w;
 
   spi_master #(
     .DATA_WIDTH(DATA_WIDTH),
@@ -120,7 +122,8 @@ module spi_top #(
     .sck_o             (sck_w),
     .mosi_o            (mosi_w),
     .miso_i            (miso_w),
-    .cs_n_o            (cs_n_w)
+    .cs_n_o            (cs_n_w),
+    .rx_overrun_o      (m_rx_overrun_w)
   );
 
   spi_slave #(
@@ -160,6 +163,6 @@ module spi_top #(
   assign irq_tx_empty_o = m_tx_empty_o;
   assign irq_rx_full_o  = m_rx_full_o;
   assign irq_done_o     = m_xfer_done_o;
-  assign irq_err_o      = m_rx_full_o && m_xfer_done_o;
+  assign irq_err_o      = m_rx_overrun_w;
 
 endmodule

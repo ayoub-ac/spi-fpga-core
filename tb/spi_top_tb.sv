@@ -17,7 +17,7 @@ module spi_top_tb #(
   input  logic                          m_cpha_i,
   input  logic                          m_lsb_first_i,
   input  logic [DIV_WIDTH-1:0]          m_clk_div_i,
-  input  logic [$clog2(NUM_CS)-1:0]     m_cs_sel_i,
+  input  logic [((NUM_CS > 1) ? $clog2(NUM_CS) : 1)-1:0] m_cs_sel_i,
   input  logic [CS_DLY_W-1:0]           m_cs_setup_i,
   input  logic [CS_DLY_W-1:0]           m_cs_hold_i,
   input  logic                          m_cs_inter_byte_i,
@@ -134,7 +134,8 @@ module spi_top_tb #(
     .miso   (miso_o),
     .cs_n   (cs_n_o),
     .m_busy (m_busy_o),
-    .m_done (m_xfer_done_o)
+    .m_done (m_xfer_done_o),
+    .cpol   (m_cpol_i)
   );
 
   spi_cov #(

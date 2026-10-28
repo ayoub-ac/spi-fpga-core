@@ -42,7 +42,7 @@ if command -v yosys >/dev/null 2>&1; then
 fi
 
 if command -v yosys >/dev/null 2>&1 && yosys -m ghdl -p "help ghdl" >/dev/null 2>&1; then
-    for g in "" "-gNUM_CS=2" "-gNUM_CS=8" "-gFIFO_DEPTH=64" "-gDATA_WIDTH=16"; do
+    for g in "" "-gNUM_CS=1" "-gNUM_CS=2" "-gNUM_CS=8" "-gFIFO_DEPTH=64" "-gDATA_WIDTH=16"; do
         echo "[vhdl-test] Mixed-language elaboration ${g:-(defaults)}..."
         log="$WORK/mixed${g//[^A-Za-z0-9_]/_}.log"
         yosys -m ghdl -l "$log" -p "ghdl --std=08 $g vhdl_wrapper/spi_top_vhdl.vhd -e spi_top_vhdl; \
