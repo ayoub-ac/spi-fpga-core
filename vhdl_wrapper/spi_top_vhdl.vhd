@@ -99,7 +99,11 @@ entity spi_top_vhdl is
     irq_tx_empty_o    : out std_logic;
     irq_rx_full_o     : out std_logic;
     irq_done_o        : out std_logic;
-    irq_err_o         : out std_logic
+    irq_err_o         : out std_logic;
+
+    miso_oe_o         : out std_logic;
+    s_tx_underrun_o   : out std_logic;
+    s_rx_overrun_o    : out std_logic
   );
 end entity spi_top_vhdl;
 
@@ -159,7 +163,10 @@ architecture rtl of spi_top_vhdl is
       irq_tx_empty_o    : out std_logic;
       irq_rx_full_o     : out std_logic;
       irq_done_o        : out std_logic;
-      irq_err_o         : out std_logic
+      irq_err_o         : out std_logic;
+      miso_oe_o         : out std_logic;
+      s_tx_underrun_o   : out std_logic;
+      s_rx_overrun_o    : out std_logic
     );
   end component;
 
@@ -219,7 +226,10 @@ begin
       irq_tx_empty_o    => irq_tx_empty_o,
       irq_rx_full_o     => irq_rx_full_o,
       irq_done_o        => irq_done_o,
-      irq_err_o         => irq_err_o
+      irq_err_o         => irq_err_o,
+      miso_oe_o         => miso_oe_o,
+      s_tx_underrun_o   => s_tx_underrun_o,
+      s_rx_overrun_o    => s_rx_overrun_o
     );
 
 end architecture rtl;

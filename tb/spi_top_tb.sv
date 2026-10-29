@@ -61,6 +61,9 @@ module spi_top_tb #(
   output logic                          irq_rx_full_o,
   output logic                          irq_done_o,
   output logic                          irq_err_o,
+  output logic                          miso_oe_o,
+  output logic                          s_tx_underrun_o,
+  output logic                          s_rx_overrun_o,
 
   // Functional coverage bins (see tb/spi_cov.sv).
   output logic [11:0]                   cov_bins_o
@@ -118,7 +121,10 @@ module spi_top_tb #(
     .irq_tx_empty_o    (irq_tx_empty_o),
     .irq_rx_full_o     (irq_rx_full_o),
     .irq_done_o        (irq_done_o),
-    .irq_err_o         (irq_err_o)
+    .irq_err_o         (irq_err_o),
+    .miso_oe_o         (miso_oe_o),
+    .s_tx_underrun_o   (s_tx_underrun_o),
+    .s_rx_overrun_o    (s_rx_overrun_o)
   );
 
   // ------------------------------------------------------------------

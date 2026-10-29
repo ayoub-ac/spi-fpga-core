@@ -16,6 +16,10 @@
 //   irq_done        one-cycle pulse on each completed transfer
 //   irq_err         one-cycle pulse when a received word was dropped
 //                   because the master RX FIFO was full (overrun)
+//
+// miso_oe_o is the slave's MISO output enable (high while cs_n_o[0] is low).
+// s_tx_underrun_o / s_rx_overrun_o are the slave's one-cycle status pulses
+// (word sent with an empty TX FIFO / received word dropped, RX FIFO full).
 
 module spi_top #(
   parameter int unsigned DATA_WIDTH = 8,
@@ -82,12 +86,18 @@ module spi_top #(
   output logic                          irq_tx_empty_o,
   output logic                          irq_rx_full_o,
   output logic                          irq_done_o,
-  output logic                          irq_err_o
+  output logic                          irq_err_o,
+
+  // Slave MISO output enable and status pulses (v1.1).
+  output logic                          miso_oe_o,
+  output logic                          s_tx_underrun_o,
+  output logic                          s_rx_overrun_o
 );
 
   logic              sck_w, mosi_w, miso_w;
   logic [NUM_CS-1:0] cs_n_w;
   logic              m_rx_overrun_w;
+  logic              miso_oe_w;
 
   spi_master #(
     .DATA_WIDTH(DATA_WIDTH),
@@ -150,12 +160,16 @@ module spi_top #(
     .sck_i        (sck_w),
     .mosi_i       (mosi_w),
     .miso_o       (miso_w),
-    .cs_n_i       (cs_n_w[0])
+    .cs_n_i       (cs_n_w[0]),
+    .miso_oe_o    (miso_oe_w),
+    .tx_underrun_o(s_tx_underrun_o),
+    .rx_overrun_o (s_rx_overrun_o)
   );
 
   assign sck_o  = sck_w;
   assign mosi_o = mosi_w;
   assign miso_o = miso_w;
+  assign miso_oe_o = miso_oe_w;
   assign cs_n_o = cs_n_w;
 
   // Interrupts (master perspective; slave wires are available through
