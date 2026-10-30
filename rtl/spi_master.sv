@@ -36,6 +36,12 @@
 // keeps CS asserted across multiple FIFO words for back-to-back transfers
 // without de-asserting the slave.
 //
+// RX_FWFT selects the RX FIFO read mode. 0 (default): rx_rdata_o is valid
+// the cycle after rx_re_i. 1: rx_rdata_o shows the RX FIFO head while
+// rx_empty_o is low and rx_re_i pops it (first-word fall-through, see
+// spi_fifo.sv); spi_axi4lite uses this to return the head on an RX_DATA
+// read.
+//
 // Reset is synchronous active-low (rst_ni). Mid-transfer reset is safe.
 
 module spi_master #(
@@ -43,7 +49,8 @@ module spi_master #(
   parameter int unsigned NUM_CS     = 4,
   parameter int unsigned FIFO_DEPTH = 16,
   parameter int unsigned DIV_WIDTH  = 16,
-  parameter int unsigned CS_DLY_W   = 8
+  parameter int unsigned CS_DLY_W   = 8,
+  parameter bit          RX_FWFT    = 1'b0
 ) (
   input  logic                          clk_i,
   input  logic                          rst_ni,
@@ -136,7 +143,7 @@ module spi_master #(
   logic                          rx_fifo_overflow;
   logic                          rx_fifo_underflow;  // unused
 
-  spi_fifo #(.WIDTH(DATA_WIDTH), .DEPTH(FIFO_DEPTH)) u_rx_fifo (
+  spi_fifo #(.WIDTH(DATA_WIDTH), .DEPTH(FIFO_DEPTH), .FWFT(RX_FWFT)) u_rx_fifo (
     .clk_i    (clk_i),
     .rst_ni   (rst_ni),
     .wr_en_i  (rx_fifo_wr_en),

@@ -25,11 +25,13 @@
 //                  or rd_out_of_range_o asserts (alignment or
 //                  out-of-range reg index).
 //
-// Performance:
-//   * Best case: B-cycle latency 1 after AW + W; RVALID one cycle after
-//     ARVALID & ARREADY. Both channels can be back-to-back with no idle
-//     gap (the FSM accepts a new AW or AR on the cycle the previous B
-//     or R is consumed).
+// Performance (measured):
+//   * BVALID is asserted 2 cycles after the later of the AW / W
+//     handshakes; RVALID 1 cycle after the AR handshake.
+//   * One write in flight and one read in flight: a new AW/W is accepted
+//     the cycle after the previous B handshake (3 cycles per write with
+//     BREADY high), a new AR the cycle after the previous R handshake
+//     (2 cycles per read with RREADY high).
 //   * The slave is purely combinational on the slave side — there is no
 //     deep pipeline. WSTRB-merged writes happen in one cycle inside the
 //     register file; SLVERR and DECERR latencies match OKAY.
@@ -83,6 +85,8 @@ module axi4lite_slave #(
   output logic [NUM_REGS*DATA_WIDTH-1:0] reg_storage_o,
   output logic                    wr_event_o,
   output logic [ADDR_WIDTH-1:0]   wr_event_addr_o,
+  output logic [DATA_WIDTH-1:0]   wr_event_data_o,   // WDATA of the write being committed
+  output logic [DATA_WIDTH/8-1:0] wr_event_strb_o,   // WSTRB of the write being committed
   output logic                    rd_event_o,
   output logic [ADDR_WIDTH-1:0]   rd_event_addr_o
 );
@@ -260,6 +264,8 @@ module axi4lite_slave #(
   // (e.g. to start a state machine when software writes a control reg).
   assign wr_event_o      = rf_wr_en && !rf_wr_out_of_range;
   assign wr_event_addr_o = rf_wr_addr;
+  assign wr_event_data_o = rf_wr_data;
+  assign wr_event_strb_o = rf_wr_strb;
   assign rd_event_o      = rf_rd_en && !rf_rd_out_of_range;
   assign rd_event_addr_o = rf_rd_addr;
 
