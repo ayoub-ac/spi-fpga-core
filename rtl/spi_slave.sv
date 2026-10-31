@@ -47,10 +47,15 @@
 //     last bit of a frame.
 //   * MISO changes 2..4 T + clock-to-output after a sampling edge; the
 //     master needs SCK period >= that delay plus its own MISO setup and
-//     the board round trip (about 4.5 T in simulation without delays).
+//     the board round trip. Simulated with no board delay and a master
+//     sampling exactly on its edge: every SCK period >= 3.1 T works, and
+//     >= 4.0 T with every input change delayed by up to 1 T (late
+//     synchronizer resolution).
 //   * CS_n fall to first SCK edge >= 1 T; CS_n high between frames >= 2 T.
-//   * TX data for the first word of a frame written >= 3 T before CS_n
-//     falls; a later write may be sent from bit 1 on (data race).
+//   * The first TX word of a frame must be written (tx_we_i sampled) on a
+//     clk_i edge before CS_n falls. A word written later may miss that
+//     word slot, which then goes out as zeros with tx_underrun_o; the word
+//     is never sent in part and stays queued for the next word.
 //
 // miso_oe_o = !cs_n_i, combinational from the pin (no clock), for a
 // tri-state or shared MISO line: drive the pad with miso_o when miso_oe_o

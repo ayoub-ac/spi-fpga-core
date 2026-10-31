@@ -49,7 +49,7 @@ flow.
 | `cpol_i / cpha_i`     | in  | 1            | Mode select.                                 |
 | `lsb_first_i`         | in  | 1            | 0 = MSB first, 1 = LSB first.                |
 | `clk_div_i`           | in  | DIV_WIDTH    | SCK = clk_i / (2*(div + 1)).                 |
-| `cs_sel_i`            | in  | log2(NUM_CS) | Chip-select line to assert.                  |
+| `cs_sel_i`            | in  | max(1, log2(NUM_CS)) | Chip-select line to assert.          |
 | `cs_setup/hold_i`     | in  | CS_DLY_W     | CS-to-SCK setup / hold cycles.               |
 | `cs_inter_byte_i`     | in  | 1            | Hold CS through multi-byte streams.          |
 | `start_i`             | in  | 1            | One-cycle pulse to launch a transfer.        |

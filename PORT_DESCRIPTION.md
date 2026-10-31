@@ -22,7 +22,7 @@ either wait for `xfer_done_o` or hold reset across a config change.
 | `cpha_i`            | 1          | 0 = sample on first SCK edge, 1 = sample on second.                        |
 | `lsb_first_i`       | 1          | 0 = MSB first (default), 1 = LSB first.                                    |
 | `clk_div_i`         | DIV_WIDTH  | SCK = clk_i / (2*(div_i + 1)). div=0 -> clk_i/2; div=255 -> clk_i/512.    |
-| `cs_sel_i`          | log2(NUM_CS)| Which CS line drives low for this transfer.                              |
+| `cs_sel_i`          | max(1, log2(NUM_CS)) | Which CS line drives low for this transfer.                     |
 | `cs_setup_cycles_i` | CS_DLY_W   | Cycles between CS-fall and the first SCK edge.                             |
 | `cs_hold_cycles_i`  | CS_DLY_W   | Cycles between the last shift edge and CS-rise (or the next byte).         |
 | `cs_inter_byte_i`   | 1          | 0 = de-assert CS between bytes, 1 = hold CS through the whole TX FIFO.    |
@@ -113,4 +113,4 @@ or CS_SETUP-to-SHIFT transition (master).
 | `irq_tx_empty_o` | TX FIFO is empty (controller can refill).              |
 | `irq_rx_full_o`  | RX FIFO is full (controller must drain).               |
 | `irq_done_o`     | One-cycle pulse on each completed transfer.            |
-| `irq_err_o`      | Pulses on RX overrun (rx_full at the end of a byte).   |
+| `irq_err_o`      | One-cycle pulse per received word dropped because the RX FIFO was full. |

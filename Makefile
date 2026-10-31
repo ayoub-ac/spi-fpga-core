@@ -3,8 +3,8 @@
 # Targets:
 #   make lint            verilator --lint-only on RTL (fifo + master + slave +
 #                        top + axi4lite_slave + axi4lite_regfile + spi_axi4lite)
-#   make sim             build the spi_top simulator
-#   make test            build + run sim, check for "+PASS"
+#   make sim             build the spi_top and spi_axi4lite simulators
+#   make test            build + run both simulators, check for "+PASS"
 #   make synth           Yosys: ice40 + ecp5 + xilinx generic for spi_top (no P&R)
 #   make synth_report    run all available toolchains and emit SYNTH_REPORT.md
 #   make vhdl-test       GHDL analysis + mixed-language elaboration check of the
@@ -36,6 +36,8 @@ RTL_AXI := \
 TB_TOP := tb/spi_top_tb.sv
 TB_AUX := tb/spi_assertions.sv tb/spi_cov.sv
 TB_CPP := tb/sim_main.cpp
+TB_AXI     := tb/spi_axi4lite_tb.sv
+TB_AXI_CPP := tb/sim_axi.cpp
 
 VFLAGS := -Wall -Wno-UNUSEDPARAM -Wno-UNUSEDSIGNAL -Wno-WIDTHEXPAND -Wno-WIDTHTRUNC
 
@@ -46,8 +48,10 @@ lint:
 	    $(RTL_CORE) $(TB_TOP) $(TB_AUX)
 	$(VERILATOR) --lint-only $(VFLAGS) --top-module spi_axi4lite \
 	    $(RTL_AXI)
+	$(VERILATOR) --lint-only $(VFLAGS) --top-module spi_axi4lite_tb \
+	    $(RTL_AXI) $(TB_AXI)
 
-sim: obj_dir/Vspi_top_tb
+sim: obj_dir/Vspi_top_tb obj_dir_axi/Vspi_axi4lite_tb
 
 obj_dir/Vspi_top_tb: $(RTL_CORE) $(TB_TOP) $(TB_AUX) $(TB_CPP)
 	$(VERILATOR) --cc --exe --build $(VFLAGS) --assert \
@@ -55,9 +59,17 @@ obj_dir/Vspi_top_tb: $(RTL_CORE) $(TB_TOP) $(TB_AUX) $(TB_CPP)
 	    $(RTL_CORE) $(TB_TOP) $(TB_AUX) $(TB_CPP) \
 	    -o Vspi_top_tb
 
+obj_dir_axi/Vspi_axi4lite_tb: $(RTL_AXI) $(TB_AXI) $(TB_AXI_CPP)
+	$(VERILATOR) --cc --exe --build $(VFLAGS) --assert --Mdir obj_dir_axi \
+	    --top-module spi_axi4lite_tb \
+	    $(RTL_AXI) $(TB_AXI) $(TB_AXI_CPP) \
+	    -o Vspi_axi4lite_tb
+
 test: sim
 	./obj_dir/Vspi_top_tb | tee test.log
-	@grep -q "+PASS" test.log && echo "TESTS PASSED" || (echo "TESTS FAILED" && exit 1)
+	./obj_dir_axi/Vspi_axi4lite_tb | tee test_axi.log
+	@grep -q "+PASS" test.log && grep -q "+PASS" test_axi.log && echo "TESTS PASSED" \
+	    || (echo "TESTS FAILED" && exit 1)
 
 # ---------- Open synthesis (Yosys) ------------------------------------------
 synth:
@@ -79,7 +91,7 @@ vhdl-test:
 	@bash scripts/vhdl_cosim.sh
 
 clean:
-	rm -rf obj_dir \
-	    test.log \
+	rm -rf obj_dir obj_dir_axi \
+	    test.log test_axi.log \
 	    synth_ice40.log synth_ecp5.log synth_xilinx.log \
 	    synth_report/ build/

@@ -9,8 +9,17 @@
 //   6. Mid-transfer reset recovery
 //   7. Back-to-back transfers (inter-byte CS hold)
 //   8. 1000 random bytes loopback round-trip in mode 0
+//   9. CPHA=1 words whose last bit is 1 (modes 1/3, MSB/LSB first)
+//  10. One word per CS frame (inter_byte=0) with several words queued on
+//      both sides: the slave sends each queued word exactly once
+//  11. Random loopback in all modes, MSB/LSB first, dividers, CS timing,
+//      single words and bursts
+//  12. Full FIFOs, RX overrun on both sides (irq_err_o, s_rx_overrun_o),
+//      slave TX underrun (s_tx_underrun_o)
+// Every cycle: miso_oe_o must equal !cs_n_o[0].
 //
-// Output: prints "+PASS" or "+FAIL" with a coverage report.
+// Output: prints "+PASS" or "+FAIL" with a coverage report; all 12
+// coverage bins must be hit.
 
 #include <cstdio>
 #include <cstdint>
@@ -28,9 +37,22 @@
 static int g_failures = 0;
 static vluint64_t g_time = 0;
 
+// Strobe counts (one count per cycle high) and per-cycle checks.
+struct Monitor {
+    int irq_err = 0;
+    int s_rx_overrun = 0;
+    int s_tx_underrun = 0;
+    int miso_oe_mismatch = 0;
+};
+static Monitor g_mon;
+
 static void tick(Vspi_top_tb* dut) {
     dut->clk_i = 0; dut->eval(); g_time++;
     dut->clk_i = 1; dut->eval(); g_time++;
+    g_mon.irq_err       += dut->irq_err_o;
+    g_mon.s_rx_overrun  += dut->s_rx_overrun_o;
+    g_mon.s_tx_underrun += dut->s_tx_underrun_o;
+    if (dut->miso_oe_o != !(dut->cs_n_o & 1)) g_mon.miso_oe_mismatch++;
 }
 
 static void reset(Vspi_top_tb* dut) {
@@ -368,6 +390,7 @@ static void report_coverage(const Vspi_top_tb* dut) {
         {"lsb_first",        bin(5)},
         {"tx_full",          bin(6)},
         {"tx_empty",         bin(7)},
+        {"rx_full",          bin(8)},
         {"rx_empty",         bin(9)},
         {"slave_responded",  bin(10)},
         {"cs1_used",         bin(11)},
@@ -382,10 +405,7 @@ static void report_coverage(const Vspi_top_tb* dut) {
     }
     std::printf("Coverage: %d/%d bins (%.1f%%)\n",
                 hit, total, 100.0 * hit / total);
-    // c_cs1_used is miss-by-design in a single-CS test suite (we'd need
-    // to drive cs_sel_i = 1 which is not part of this regression).
-    // We still print it but allow up to 2 misses.
-    if (hit < total - 2) g_failures++;
+    if (hit < total) g_failures++;
 }
 
 // ---------------------------------------------------------------------------
@@ -410,6 +430,183 @@ static void test_cs1(Vspi_top_tb* dut) {
     else              { std::printf("  [FAIL] cs_n[1] never asserted\n"); g_failures++; }
 }
 
+static bool check(bool ok, const char* what) {
+    if (!ok) { std::printf("  [FAIL] %s\n", what); g_failures++; }
+    return ok;
+}
+
+// ---------------------------------------------------------------------------
+// Test 9: CPHA=1, words whose last bit on the wire is 1 or 0. The master
+// must hold MOSI after its final sampling edge; the slave must answer
+// with every bit of its own word.
+// ---------------------------------------------------------------------------
+static void test_cpha1_last_bit(Vspi_top_tb* dut) {
+    std::printf("---- Test 9: CPHA=1 last bit (modes 1/3, MSB/LSB first, div 1/3) ----\n");
+    const uint8_t words[] = {0x01, 0x3D, 0xFF, 0x81, 0x80, 0xF1, 0x7F, 0x3C};
+    int checked = 0, fails = 0;
+    for (int cpol = 0; cpol < 2; cpol++)
+        for (int lsb = 0; lsb < 2; lsb++)
+            for (int div : {1, 3})
+                for (uint8_t w : words) {
+                    reset(dut);
+                    cfg_master(dut, cpol, 1, lsb, div, 0, 4, 4, 0);
+                    cfg_slave (dut, cpol, 1, lsb);
+                    const uint8_t resp = static_cast<uint8_t>(~w);
+                    push_tx(dut, resp, false);
+                    push_tx(dut, w, true);
+                    start_xfer(dut);
+                    if (!check(wait_idle(dut), "CPHA=1 transfer timed out")) return;
+                    const uint8_t m = pop_rx(dut, true);
+                    const uint8_t s = pop_rx(dut, false);
+                    checked++;
+                    if (m != resp || s != w) {
+                        if (fails < 5)
+                            std::printf("  [FAIL] mode%d lsb%d div%d sent 0x%02x/0x%02x got m=0x%02x s=0x%02x\n",
+                                        2 * cpol + 1, lsb, div, w, resp, m, s);
+                        fails++;
+                    }
+                }
+    if (fails == 0) std::printf("  [PASS] %d CPHA=1 words, both directions\n", checked);
+    g_failures += fails;
+}
+
+// ---------------------------------------------------------------------------
+// Test 10: inter_byte=0, six words queued on both sides before the first
+// start: one word per CS frame, and the slave TX count drops by exactly
+// one per frame.
+// ---------------------------------------------------------------------------
+static void test_word_per_frame(Vspi_top_tb* dut) {
+    std::printf("---- Test 10: one word per CS frame, 6 words queued on both sides ----\n");
+    const int n = 6;
+    const int f0 = g_failures;
+    for (int mode = 0; mode < 4; mode++) {
+        const int lsb = mode & 1;
+        reset(dut);
+        cfg_master(dut, mode >> 1, mode & 1, lsb, 2, 0, 3, 3, /*inter_byte=*/0);
+        cfg_slave (dut, mode >> 1, mode & 1, lsb);
+        uint8_t m_in[n], s_in[n];
+        for (int i = 0; i < n; i++) {
+            m_in[i] = static_cast<uint8_t>(0x11 * (i + 1) + mode);
+            s_in[i] = static_cast<uint8_t>(0xA0 + 0x0B * i + mode);
+        }
+        for (int i = 0; i < n; i++) push_tx(dut, s_in[i], false);
+        for (int i = 0; i < n; i++) push_tx(dut, m_in[i], true);
+        for (int k = 0; k < n; k++) {
+            start_xfer(dut);
+            if (!check(wait_idle(dut), "frame timed out")) return;
+            if (dut->s_tx_count_o != static_cast<unsigned>(n - 1 - k)) {
+                std::printf("  [FAIL] mode%d: slave TX count %d after frame %d (expected %d)\n",
+                            mode, dut->s_tx_count_o, k, n - 1 - k);
+                g_failures++;
+            }
+        }
+        for (int i = 0; i < n; i++) {
+            const uint8_t m = pop_rx(dut, true);
+            const uint8_t s = pop_rx(dut, false);
+            if (m != s_in[i] || s != m_in[i]) {
+                std::printf("  [FAIL] mode%d word %d: m=0x%02x exp 0x%02x  s=0x%02x exp 0x%02x\n",
+                            mode, i, m, s_in[i], s, m_in[i]);
+                g_failures++;
+            }
+        }
+    }
+    if (g_failures == f0) std::printf("  [PASS] 4 modes x %d frames, every queued word sent once\n", n);
+}
+
+// ---------------------------------------------------------------------------
+// Test 11: random loopback over all modes, bit orders, dividers, CS
+// setup/hold, single-word frames and bursts.
+// ---------------------------------------------------------------------------
+static void test_random_all_modes(Vspi_top_tb* dut, int total) {
+    std::printf("---- Test 11: %d random words, all modes, MSB/LSB first, div 1..7 ----\n", total);
+    reset(dut);
+    std::mt19937 rng(0x5EED0011u);
+    auto pick = [&rng](int lo, int hi) { return std::uniform_int_distribution<int>(lo, hi)(rng); };
+    const int divs[] = {1, 1, 2, 3, 5, 7};
+    int sent = 0, fails = 0, frames = 0;
+    while (sent < total && fails < 20) {
+        const int mode = pick(0, 3), lsb = pick(0, 1), div = divs[pick(0, 5)];
+        const int setup = pick(0, 7), hold = pick(0, 7), inter = pick(0, 1);
+        const int n = inter ? pick(1, 8) : pick(1, 3);
+        cfg_master(dut, mode >> 1, mode & 1, lsb, div, 0, setup, hold, inter);
+        cfg_slave (dut, mode >> 1, mode & 1, lsb);
+        tick(dut); tick(dut);
+        std::vector<uint8_t> m_in(n), s_in(n);
+        for (int i = 0; i < n; i++) { m_in[i] = pick(0, 255); s_in[i] = pick(0, 255); }
+        for (int i = 0; i < n; i++) push_tx(dut, s_in[i], false);
+        for (int i = 0; i < n; i++) push_tx(dut, m_in[i], true);
+        for (int k = 0; k < (inter ? 1 : n); k++) {
+            start_xfer(dut);
+            if (!check(wait_idle(dut), "random transfer timed out")) return;
+            frames++;
+        }
+        for (int i = 0; i < n; i++) {
+            const uint8_t m = pop_rx(dut, true);
+            const uint8_t s = pop_rx(dut, false);
+            if (m != s_in[i] || s != m_in[i]) {
+                if (fails < 5)
+                    std::printf("  [FAIL] word %d mode%d lsb%d div%d setup%d hold%d inter%d: "
+                                "m=0x%02x exp 0x%02x  s=0x%02x exp 0x%02x\n",
+                                sent + i, mode, lsb, div, setup, hold, inter, m, s_in[i], s, m_in[i]);
+                fails++;
+            }
+        }
+        sent += n;
+    }
+    std::printf("  random: %d words in %d CS frames, %d mismatches\n", sent, frames, fails);
+    g_failures += fails;
+}
+
+// ---------------------------------------------------------------------------
+// Test 12: fill both TX FIFOs, receive until both RX FIFOs are full (no
+// loss, no overrun), then one more word each way (dropped on both sides,
+// one overrun strobe each), then a frame with the slave TX FIFO empty
+// (zeros on MISO, one underrun strobe).
+// ---------------------------------------------------------------------------
+static void test_full_and_overrun(Vspi_top_tb* dut) {
+    std::printf("---- Test 12: full FIFOs, RX overrun, slave TX underrun ----\n");
+    const int depth = 16;
+    const int f0 = g_failures;
+    reset(dut);
+    cfg_master(dut, 0, 0, 0, 1, 0, 2, 2, /*inter_byte=*/1);
+    cfg_slave (dut, 0, 0, 0);
+    for (int i = 0; i < depth; i++) push_tx(dut, static_cast<uint8_t>(0x40 + i), false);
+    check(dut->s_tx_full_o, "slave TX FIFO full after 16 writes");
+    for (int i = 0; i < depth; i++) push_tx(dut, static_cast<uint8_t>(0x80 + i), true);
+    check(dut->m_tx_full_o, "master TX FIFO full after 16 writes");
+    g_mon.irq_err = g_mon.s_rx_overrun = g_mon.s_tx_underrun = 0;
+    start_xfer(dut);
+    check(wait_idle(dut), "16-word burst completes");
+    check(dut->m_rx_full_o && dut->m_rx_count_o == depth, "master RX FIFO full");
+    check(dut->s_rx_full_o && dut->s_rx_count_o == depth, "slave RX FIFO full");
+    check(g_mon.irq_err == 0, "no irq_err_o while nothing is lost");
+    check(g_mon.s_rx_overrun == 0, "no s_rx_overrun_o while nothing is lost");
+    check(g_mon.s_tx_underrun == 0, "no s_tx_underrun_o with 16 queued words");
+
+    push_tx(dut, 0xEE, false);
+    push_tx(dut, 0x77, true);
+    start_xfer(dut);
+    check(wait_idle(dut), "transfer into full RX FIFOs completes");
+    check(g_mon.irq_err == 1, "one irq_err_o strobe for the word dropped by the master");
+    check(g_mon.s_rx_overrun == 1, "one s_rx_overrun_o strobe for the word dropped by the slave");
+    check(dut->m_rx_count_o == depth && dut->s_rx_count_o == depth, "RX counts stay at the depth");
+    bool kept = true;
+    for (int i = 0; i < depth; i++) {
+        kept = kept && pop_rx(dut, true) == static_cast<uint8_t>(0x40 + i);
+        kept = kept && pop_rx(dut, false) == static_cast<uint8_t>(0x80 + i);
+    }
+    check(kept, "both RX FIFOs keep the first 16 words");
+
+    cfg_master(dut, 0, 0, 0, 1, 0, 2, 2, 0);
+    push_tx(dut, 0x5A, true);
+    start_xfer(dut);
+    check(wait_idle(dut), "transfer with an empty slave TX FIFO completes");
+    check(g_mon.s_tx_underrun == 1, "one s_tx_underrun_o strobe");
+    check(pop_rx(dut, true) == 0x00, "master receives zeros from an empty slave TX FIFO");
+    check(pop_rx(dut, false) == 0x5A, "slave still receives the word");
+    if (g_failures == f0) std::printf("  [PASS] full flags, overrun and underrun strobes\n");
+}
+
 int main(int argc, char** argv) {
     Verilated::commandArgs(argc, argv);
     setvbuf(stdout, nullptr, _IOLBF, 0);
@@ -423,6 +620,14 @@ int main(int argc, char** argv) {
     test_mid_reset(dut);
     test_cs1(dut);
     test_random_1000(dut);
+    test_cpha1_last_bit(dut);
+    test_word_per_frame(dut);
+    test_random_all_modes(dut, 3000);
+    test_full_and_overrun(dut);
+
+    std::printf("\n---- Per-cycle checks ----\n");
+    if (g_mon.miso_oe_mismatch == 0) std::printf("  [PASS] miso_oe_o == !cs_n_o[0] on every cycle\n");
+    else { std::printf("  [FAIL] miso_oe_o != !cs_n_o[0] on %d cycles\n", g_mon.miso_oe_mismatch); g_failures++; }
 
     report_coverage(dut);
 
