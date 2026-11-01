@@ -1,0 +1,27 @@
+# Formal jobs for rtl/axi4lite_slave.sv + rtl/axi4lite_regfile.sv: unbounded
+# proof (k-induction, whitebox invariants included) and covers. Run through
+# formal/run.sh.
+[tasks]
+prf
+cvr
+
+[options]
+prf: mode prove
+prf: depth 6
+cvr: mode cover
+cvr: depth 24
+
+[engines]
+smtbmc yices
+
+[script]
+prf: read_verilog -sv -formal -DAXI_WHITEBOX axi4lite_slave_fv.sv
+cvr: read_verilog -sv -formal axi4lite_slave_fv.sv
+read_verilog -sv -formal axi4lite_regfile.sv axi_fv_top.sv
+prep -top axi_fv_top
+
+[files]
+axi4lite_slave_fv.sv
+axi4lite_regfile.sv
+axi_fv_top.sv
+axi_props.svh

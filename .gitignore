@@ -39,3 +39,8 @@ LAUNCH.md
 build/
 *.cf
 *.o
+# cocotb regression outputs (tests/cocotb/build/ is covered by build/)
+tests/cocotb/results/
+__pycache__/
+# SymbiYosys work directories
+formal/work/

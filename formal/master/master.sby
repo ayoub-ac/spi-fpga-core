@@ -1,0 +1,35 @@
+# Formal jobs for rtl/spi_master.sv: unbounded proofs (k-induction) with
+# small parameters, a long bounded check of the busy bound, and covers.
+# Run through formal/run.sh.
+[tasks]
+prf_w4   prf p4
+prf_w8   prf p8
+prf_cs1  prf p1cs
+bmc      p4b
+cvr      p4b
+
+[options]
+prf: mode prove
+prf: depth 12
+bmc: mode bmc
+bmc: depth 90
+cvr: mode cover
+cvr: depth 60
+
+[engines]
+smtbmc yices
+
+[script]
+prf: read_verilog -sv -formal -DMASTER_WHITEBOX spi_fifo.sv spi_master_fv.sv
+bmc: read_verilog -sv -formal -DF_BUSY_MAX=70 spi_fifo.sv spi_master_fv.sv
+cvr: read_verilog -sv -formal spi_fifo.sv spi_master_fv.sv
+p4:   chparam -set DATA_WIDTH 4 -set FIFO_DEPTH 2 -set DIV_WIDTH 2 -set CS_DLY_W 2 -set NUM_CS 4 spi_master
+p4b:  chparam -set DATA_WIDTH 4 -set FIFO_DEPTH 2 -set DIV_WIDTH 1 -set CS_DLY_W 1 -set NUM_CS 4 spi_master
+p8:   chparam -set DATA_WIDTH 8 -set FIFO_DEPTH 4 -set DIV_WIDTH 4 -set CS_DLY_W 3 -set NUM_CS 4 spi_master
+p1cs: chparam -set DATA_WIDTH 4 -set FIFO_DEPTH 2 -set DIV_WIDTH 2 -set CS_DLY_W 2 -set NUM_CS 1 spi_master
+prep -top spi_master
+
+[files]
+spi_fifo.sv
+spi_master_fv.sv
+master_props.svh

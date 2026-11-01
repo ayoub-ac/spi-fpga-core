@@ -1,0 +1,47 @@
+# Formal jobs for rtl/spi_fifo.sv: unbounded proofs (k-induction) for both
+# read modes and several depths, plus cover traces. Run through formal/run.sh.
+[tasks]
+prf_std_d1  prf std d1
+prf_std_d2  prf std d2
+prf_std_d3  prf std d3
+prf_std_d4  prf std d4
+prf_std_d5  prf std d5
+prf_std_d12 prf std d12
+prf_std_d16 prf std d16
+prf_std_d4_w1 prf std d4 w1
+prf_fwft_d1  prf fwft d1
+prf_fwft_d2  prf fwft d2
+prf_fwft_d3  prf fwft d3
+prf_fwft_d4  prf fwft d4
+prf_fwft_d5  prf fwft d5
+prf_fwft_d12 prf fwft d12
+prf_fwft_d16 prf fwft d16
+cvr_std_d4  cvr std d4
+cvr_fwft_d4 cvr fwft d4
+cvr_std_d16 cvr std d16
+
+[options]
+prf: mode prove
+prf: depth 10
+cvr: mode cover
+cvr: depth 40
+
+[engines]
+smtbmc yices
+
+[script]
+read_verilog -sv -formal -DFIFO_WHITEBOX spi_fifo_fv.sv
+d1:  chparam -set DEPTH 1 spi_fifo
+d2:  chparam -set DEPTH 2 spi_fifo
+d3:  chparam -set DEPTH 3 spi_fifo
+d4:  chparam -set DEPTH 4 spi_fifo
+d5:  chparam -set DEPTH 5 spi_fifo
+d12: chparam -set DEPTH 12 spi_fifo
+d16: chparam -set DEPTH 16 spi_fifo
+w1:  chparam -set WIDTH 1 spi_fifo
+fwft: chparam -set FWFT 1 spi_fifo
+prep -top spi_fifo
+
+[files]
+spi_fifo_fv.sv
+fifo_props.svh
