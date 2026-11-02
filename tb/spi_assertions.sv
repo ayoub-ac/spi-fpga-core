@@ -1,8 +1,8 @@
-// SPDX-License-Identifier: GPL-3.0-or-later OR Commercial
+// SPDX-License-Identifier: GPL-3.0-or-later OR LicenseRef-Commercial
 //
 // SPI protocol assertions (Motorola SPI block guide §8.5).
 //
-// Properties (10 total):
+// Properties (9 total):
 //   p_sck_idle_to_cpol   While CS is high (idle), SCK only changes to move to
 //                        the configured CPOL; it never pulses.
 //   p_sck_idle_polarity  After two idle cycles, SCK equals CPOL.
@@ -10,13 +10,12 @@
 //                        line asserts.
 //   p_no_data_when_idle  MOSI does not toggle while all CS lines are high.
 //   p_cs_one_hot_active  At most one CS line is asserted (low) at a time.
-//   p_busy_during_xfer   m_busy stays high for the full window between the
-//                        first CS-fall and the matching CS-rise.
-//   p_done_after_busy    m_done pulses only when m_busy was high in the
-//                        previous cycle (i.e., a real transfer just ended).
-//   p_no_done_when_idle  m_done does not pulse while m_busy is low (no
-//                        spurious done signals).
-//   p_done_pulse_oneshot m_done is exactly one cycle wide.
+//   p_busy_during_xfer   m_busy is high in the cycle after any cycle with a
+//                        CS line asserted.
+//   p_no_done_when_idle  m_done does not pulse while the bus is idle and
+//                        m_busy was low in the previous cycle.
+//   p_done_pulse_oneshot m_done is never high in two consecutive cycles.
+//   p_no_busy_deadlock   m_busy never stays high for 100000 cycles.
 
 module spi_assertions #(
   parameter int unsigned NUM_CS = 4

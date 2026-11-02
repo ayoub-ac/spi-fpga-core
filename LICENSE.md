@@ -1,6 +1,8 @@
 # License
 
-This IP core is dual-licensed.
+This IP core is dual-licensed. SPDX expression:
+`GPL-3.0-or-later OR LicenseRef-Commercial`, where `LicenseRef-Commercial`
+is the commercial license described below.
 
 ## GPL-3.0-or-later (open-source use)
 
@@ -11,6 +13,8 @@ This program is free software: you can redistribute it and/or modify it under th
 This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+The RTL is provided as is, without warranty of any kind, to the extent permitted by applicable law (GPL-3.0 sections 15 and 16).
 
 The full GPL-3.0 text is canonical and lives at the FSF link above. A copy is available for convenience: <https://www.gnu.org/licenses/gpl-3.0.txt>.
 
@@ -26,10 +30,9 @@ The commercial license:
 
 - removes the GPL viral requirement,
 - grants you (and your company) the right to integrate the core into closed-source products,
-- gives you a clear, written grant you can show to your customers and to a due-diligence auditor,
-- includes a 1-year fix window on bugs and clarifications.
+- gives you a clear, written grant you can show to your customers and to a due-diligence auditor.
 
-Pricing tiers and the purchase link are listed at the project page (see the URL in the README citation block). For tier inquiries, email the address listed in the project page.
+Terms (scope, fee, support) are agreed per project. To request a quote, open a GitHub issue with the [commercial license request](https://github.com/ayoub-ac/spi-fpga-core/issues/new?template=commercial-license.yml) form. Do not post confidential details in the issue; the discussion moves to a private channel.
 
 ## Trademarks
 

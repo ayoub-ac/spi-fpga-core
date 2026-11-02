@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later OR Commercial
+// SPDX-License-Identifier: GPL-3.0-or-later OR LicenseRef-Commercial
 //
 // Top-level testbench wrapper for spi_top. Stimulus from tb/sim_main.cpp
 // drives the master and slave configuration / FIFO ports directly.

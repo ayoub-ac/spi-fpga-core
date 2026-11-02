@@ -117,7 +117,7 @@ async def p01_map_and_decode(dut):
     axi, sn = await setup(dut)
     errs = []
     exp = {CTRL: 0, STATUS: 0b01010, IRQ_MASK: 0, CLK_DIV: 0, TX_DATA: 0, RX_DATA: 0, FIFO_LVL: 0,
-           ID: 0x5910017E, VERSION: 0x00010000}
+           ID: 0x5910017E, VERSION: 0x00010100}
     for a, e in exp.items():
         v, r = await rd(axi, a)
         if (v, r) != (e, OKAY):

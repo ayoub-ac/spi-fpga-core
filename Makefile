@@ -25,6 +25,8 @@
 #                        Yosys, Verilator and Icarus
 #   make pnr             Yosys + nextpnr place-and-route of spi_top and
 #                        spi_axi4lite for iCE40 UP5K and ECP5-25 (build/pnr/)
+#   make doc-numbers     pnr + synth_report, then copy the measured numbers
+#                        into README.md, RESOURCE_ESTIMATES.md, VERIFICATION.md
 #   make clean           remove build artifacts
 
 # Recipes such as `sim | tee log` must fail when the first command fails.
@@ -61,7 +63,7 @@ TB_AXI_CPP := tb/sim_axi.cpp
 
 VFLAGS := -Wall -Wno-UNUSEDPARAM -Wno-UNUSEDSIGNAL -Wno-WIDTHEXPAND -Wno-WIDTHTRUNC
 
-.PHONY: lint sim test synth synth_report vhdl-test cocotb waves formal gatelevel params pnr clean
+.PHONY: lint sim test synth synth_report vhdl-test cocotb waves formal gatelevel params pnr doc-numbers clean
 
 lint:
 	$(VERILATOR) --lint-only $(VFLAGS) --top-module spi_top_tb \
@@ -138,6 +140,11 @@ params:
 # ---------- Open place-and-route (Yosys + nextpnr) ----------------------------
 pnr:
 	$(PYTHON) scripts/pnr.py
+
+# Every synthesis / P&R number in the docs comes from here (SYNTH_REPORT.md
+# from synth_report, the generated sections of the other docs from build/pnr).
+doc-numbers: pnr synth_report
+	$(PYTHON) scripts/update_numbers.py
 
 clean:
 	rm -rf obj_dir obj_dir_axi \

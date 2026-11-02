@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later OR Commercial
+// SPDX-License-Identifier: GPL-3.0-or-later OR LicenseRef-Commercial
 //
 // Testbench wrapper for spi_axi4lite, driven by tb/sim_axi.cpp. MISO is
 // looped back to MOSI, so every word read from RX_DATA must equal the word

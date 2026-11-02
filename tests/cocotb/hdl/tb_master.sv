@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later OR Commercial
+// SPDX-License-Identifier: GPL-3.0-or-later OR LicenseRef-Commercial
 //
 // cocotb wrapper: spi_master with cs_n_o[0] split out for cocotbext-spi and
 // an optional VCD dump (+vcd=<file>).

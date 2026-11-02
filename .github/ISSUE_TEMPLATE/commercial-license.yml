@@ -1,0 +1,38 @@
+name: Commercial license request
+description: Ask for a quote for the commercial license (closed-source use).
+title: "Commercial license request: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Terms are agreed per project. Do not post confidential details; we will move to private contact.
+  - type: input
+    id: company
+    attributes:
+      label: Company
+    validations:
+      required: true
+  - type: dropdown
+    id: product-type
+    attributes:
+      label: Product type
+      options:
+        - FPGA
+        - ASIC
+        - FPGA and ASIC
+    validations:
+      required: true
+  - type: input
+    id: volume
+    attributes:
+      label: Volume or project count
+      description: Expected units per year, or the number of projects or designs.
+    validations:
+      required: true
+  - type: input
+    id: timeline
+    attributes:
+      label: Timeline
+      description: When the license is needed.
+    validations:
+      required: true

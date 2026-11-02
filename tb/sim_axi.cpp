@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later OR Commercial
+// SPDX-License-Identifier: GPL-3.0-or-later OR LicenseRef-Commercial
 //
 // Verilator C++ harness for spi_axi4lite (tb/spi_axi4lite_tb.sv, MISO looped
 // back to MOSI). An AXI4-Lite master drives the register map cycle by cycle
@@ -251,7 +251,7 @@ void test_map(Bench& b) {
         {kIrqStat, kIrqTxEmpty, "IRQ_STAT"}, {kIrqMask, 0, "IRQ_MASK"},
         {kClkDiv, 0, "CLK_DIV"},    {kTxData, 0, "TX_DATA"},
         {kRxData, 0, "RX_DATA"},    {kFifoLvl, 0, "FIFO_LVL"},
-        {kId, 0x5910017E, "ID"},    {kVersion, 0x00010000, "VERSION"},
+        {kId, 0x5910017E, "ID"},    {kVersion, 0x00010100, "VERSION"},
     };
     uint32_t resp = 0;
     for (const Reg& r : regs) {

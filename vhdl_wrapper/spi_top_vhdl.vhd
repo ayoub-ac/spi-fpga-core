@@ -1,4 +1,4 @@
--- SPDX-License-Identifier: GPL-3.0-or-later OR Commercial
+-- SPDX-License-Identifier: GPL-3.0-or-later OR LicenseRef-Commercial
 --
 -- VHDL-2008 wrapper for the SystemVerilog spi_top module. Use this when
 -- your top-level project is VHDL but the SPI core is delivered in SV.

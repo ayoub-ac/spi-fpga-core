@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later OR Commercial
+// SPDX-License-Identifier: GPL-3.0-or-later OR LicenseRef-Commercial
 //
 `timescale 1ns/1ps
 // RTL spi_fifo against its synth_ice40 netlist (block RAM for larger depths),

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later OR Commercial
+// SPDX-License-Identifier: GPL-3.0-or-later OR LicenseRef-Commercial
 //
 // cocotb wrapper: spi_slave plus an optional VCD dump (+vcd=<file>).
 module tb_slave #(

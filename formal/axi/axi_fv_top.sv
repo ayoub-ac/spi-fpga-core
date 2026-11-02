@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later OR Commercial
+// SPDX-License-Identifier: GPL-3.0-or-later OR LicenseRef-Commercial
 //
 // Formal top: axi4lite_slave with the spi_axi4lite attribute map, except
 // reg10 made RC so all four attribute types are exercised. Non-zero reset
@@ -20,7 +20,7 @@ module axi_fv_top (
   localparam logic [31:0] ATTR = 32'h0025_5034;   // reg1,6..9 RO; reg2 W1C; reg10 RC; rest RW
   localparam logic [16*32-1:0] RST =
       (512'h0000_000F << (2*32)) | (512'h5910_017E << (8*32)) |
-      (512'h0001_0000 << (9*32)) | (512'h1234_5678 << (10*32));
+      (512'h0001_0100 << (9*32)) | (512'h1234_5678 << (10*32));
   axi4lite_slave #(.ADDR_WIDTH(8), .DATA_WIDTH(32), .NUM_REGS(16),
                    .REG_ATTR(ATTR), .REG_RESET(RST)) u_s (
     .s_axi_aclk(clk), .s_axi_aresetn(rstn),

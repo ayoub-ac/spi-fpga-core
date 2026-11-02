@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later OR Commercial
+// SPDX-License-Identifier: GPL-3.0-or-later OR LicenseRef-Commercial
 //
 // Verilator C++ harness for spi_top. Runs:
 //   1. Single-byte loopback in each of the 4 modes (master <-> slave)

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later OR Commercial
+// SPDX-License-Identifier: GPL-3.0-or-later OR LicenseRef-Commercial
 //
 // Formal properties for axi4lite_slave (+ its axi4lite_regfile), included
 // just before `endmodule` of a formal-only copy of rtl/axi4lite_slave.sv.

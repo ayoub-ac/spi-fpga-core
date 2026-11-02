@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later OR Commercial
+// SPDX-License-Identifier: GPL-3.0-or-later OR LicenseRef-Commercial
 //
 // AXI4-Lite wrapper around spi_master. Provides a software-visible
 // register-mapped control / status interface so a CPU can drive the SPI
@@ -30,7 +30,8 @@
 //                          (reads 0 and pops nothing when RX is empty)
 //   0x1C  FIFO_LVL   RO    bits[15:0]=tx_count, bits[31:16]=rx_count
 //   0x20  ID         RO    32'h5910_017E
-//   0x24  VERSION    RO    32'h0001_0000
+//   0x24  VERSION    RO    32'h0001_0100 = v1.1.0, encoded as
+//                          {major[15:0], minor[7:0], patch[7:0]}
 //   0x28..0x3C       RW    user scratch
 //
 // REG_ATTR encoding (2 bits per register, register 0 in LSBs):
@@ -133,7 +134,7 @@ module spi_axi4lite #(
   };
 
   localparam logic [DATA_WIDTH-1:0] ID_VAL      = 32'h5910_017E;
-  localparam logic [DATA_WIDTH-1:0] VERSION_VAL = 32'h0001_0000;
+  localparam logic [DATA_WIDTH-1:0] VERSION_VAL = 32'h0001_0100;   // v1.1.0
 
   localparam logic [NUM_REGS*DATA_WIDTH-1:0] EX_REG_RESET =
         ({{(NUM_REGS*DATA_WIDTH-DATA_WIDTH){1'b0}}, ID_VAL}      << (8*DATA_WIDTH))

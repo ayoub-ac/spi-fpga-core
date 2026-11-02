@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later OR Commercial
+// SPDX-License-Identifier: GPL-3.0-or-later OR LicenseRef-Commercial
 //
 `timescale 1ps/1ps
 // Generic yosys gate models with a random transport delay per instance (60..260 ps) and

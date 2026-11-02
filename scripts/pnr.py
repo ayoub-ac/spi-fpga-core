@@ -12,11 +12,20 @@ chain (the cores have more ports than these packages have pins), so it is
 the internal register-to-register limit, without pin constraints or I/O
 timing; the wrapper adds one flip-flop per port bit to the P&R utilisation.
 Every log stays in the output directory (default build/pnr); the summary
-is printed and written to summary.md there.
+is printed and written to summary.md and summary.json (with the tool
+versions) there. scripts/update_numbers.py copies summary.json into the
+docs.
+
+Yosys reads the sources through paths relative to the repository root: the
+paths end up in src attributes and change the result (the ECP5 abc9 mapping
+of spi_top gave 506 LUT4 through rtl/... and 599 through the absolute paths
+of one checkout), so every checkout gets the same numbers.
 """
 import argparse
 import json
+import os
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -42,13 +51,38 @@ FAMILIES = {
 
 def run(cmd, log):
     with open(log, "w") as f:
-        r = subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT)
+        r = subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT, cwd=ROOT)
     if r.returncode != 0:
         raise SystemExit(f"command failed ({r.returncode}), see {log}: {' '.join(map(str, cmd))}")
 
 
 def yosys(script, log):
     run(["yosys", "-q", "-l", str(log), "-p", script], str(log) + ".out")
+
+
+def rel(path):
+    return os.path.relpath(path, ROOT)
+
+
+def tool_versions():
+    def first_line(cmd):
+        try:
+            return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                  text=True).stdout.splitlines()[0].strip()
+        except (OSError, IndexError):
+            return None
+    yosys = first_line(["yosys", "-V"]) or ""
+    nextpnr = first_line(["nextpnr-ice40", "--version"]) or ""
+    m = re.search(r"\(Version ([^)]+)\)", nextpnr)
+    suite = None
+    exe = shutil.which("yosys")
+    if exe:
+        version_file = Path(exe).resolve().parent.parent / "VERSION"
+        if version_file.is_file():
+            d = version_file.read_text().strip()
+            suite = f"{d[:4]}-{d[4:6]}-{d[6:8]}" if re.fullmatch(r"\d{8}", d) else d
+    return {"yosys": yosys.split(" (")[0] or None, "nextpnr": m.group(1) if m else (nextpnr or None),
+            "oss_cad_suite": suite}
 
 
 def count(cells, prefixes):
@@ -97,11 +131,11 @@ def main():
     ap.add_argument("--out", default=str(ROOT / "build" / "pnr"))
     ap.add_argument("--seeds", type=int, nargs="+", default=[1, 2, 3])
     a = ap.parse_args()
-    out = Path(a.out)
+    out = Path(a.out).resolve()
     out.mkdir(parents=True, exist_ok=True)
     rows = []
     for top, (clk, files) in DESIGNS.items():
-        srcs = " ".join(str(RTL / f) for f in files)
+        srcs = " ".join(rel(RTL / f) for f in files)
         ports = out / f"{top}.ports.json"
         yosys(f"read_verilog -sv {srcs}; hierarchy -check -top {top}; proc; write_json {ports}",
               out / f"{top}.ports.log")
@@ -114,7 +148,7 @@ def main():
                   f"tee -q -o {stat} stat -json", out / f"{tag}.synth.log")
             cells = json.loads(stat.read_text())["design"]["num_cells_by_type"]
             net = out / f"{tag}.wrap.json"
-            yosys(f"read_verilog -sv {srcs} {out / f'wrap_{top}.sv'}; {cfg['synth']} -top wrap_{top} "
+            yosys(f"read_verilog -sv {srcs} {rel(out / f'wrap_{top}.sv')}; {cfg['synth']} -top wrap_{top} "
                   f"-json {net}", out / f"{tag}.wrap.synth.log")
             seeds = {}
             for s in a.seeds:
@@ -139,7 +173,7 @@ def main():
                      f"{r['lutram'] if FAMILIES[r['family']]['lutram'] else '-'} | {fr} | {r['target_mhz']} MHz |")
     summary = "\n".join(lines)
     (out / "summary.md").write_text(summary + "\n")
-    (out / "summary.json").write_text(json.dumps(rows, indent=1))
+    (out / "summary.json").write_text(json.dumps(dict(tools=tool_versions(), seeds=a.seeds, rows=rows), indent=1))
     print(summary)
     return 0
 

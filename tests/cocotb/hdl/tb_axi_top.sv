@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later OR Commercial
+// SPDX-License-Identifier: GPL-3.0-or-later OR LicenseRef-Commercial
 //
 // Thin test wrapper: spi_axi4lite unchanged, MISO driven either by an
 // internal MOSI->MISO loopback or by an external (Python) SPI slave model.
