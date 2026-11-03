@@ -1,0 +1,32 @@
+name: OSS CAD Suite
+description: Install a dated OSS CAD Suite release (Linux x64) and export OSS_CAD_SUITE.
+inputs:
+  date:
+    description: Release tag of YosysHQ/oss-cad-suite-build (YYYY-MM-DD).
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Restore the release archive
+      id: cache
+      uses: actions/cache@v6
+      with:
+        path: ${{ runner.temp }}/oss-cad-suite-archive
+        key: oss-cad-suite-linux-x64-${{ inputs.date }}
+    - name: Download the release archive
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        DATE: ${{ inputs.date }}
+      run: |
+        mkdir -p "$RUNNER_TEMP/oss-cad-suite-archive"
+        curl -fsSL --retry 3 -o "$RUNNER_TEMP/oss-cad-suite-archive/oss-cad-suite.tgz" \
+          "https://github.com/YosysHQ/oss-cad-suite-build/releases/download/$DATE/oss-cad-suite-linux-x64-${DATE//-/}.tgz"
+    - name: Extract
+      shell: bash
+      env:
+        DATE: ${{ inputs.date }}
+      run: |
+        tar -xzf "$RUNNER_TEMP/oss-cad-suite-archive/oss-cad-suite.tgz" -C "$RUNNER_TEMP"
+        test "$(cat "$RUNNER_TEMP/oss-cad-suite/VERSION")" = "${DATE//-/}"
+        echo "OSS_CAD_SUITE=$RUNNER_TEMP/oss-cad-suite" >> "$GITHUB_ENV"

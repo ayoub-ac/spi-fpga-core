@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Same OSS CAD Suite build as the runs recorded in VERIFICATION.md.
+  OSS_CAD_SUITE_DATE: "2026-11-01"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  checks:
+    name: lint, test, params, vhdl-test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/oss-cad-suite
+        with:
+          date: ${{ env.OSS_CAD_SUITE_DATE }}
+      - name: make lint
+        run: source "$OSS_CAD_SUITE/environment" && make lint
+      - name: make test
+        run: source "$OSS_CAD_SUITE/environment" && make test
+      - name: make params
+        run: source "$OSS_CAD_SUITE/environment" && make params
+      - name: make vhdl-test
+        run: source "$OSS_CAD_SUITE/environment" && make vhdl-test
+
+  cocotb:
+    name: cocotb ci profile (${{ matrix.sim }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        sim: [verilator, icarus]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/oss-cad-suite
+        with:
+          date: ${{ env.OSS_CAD_SUITE_DATE }}
+      - name: Install cocotb
+        run: |
+          source "$OSS_CAD_SUITE/environment"
+          python3 -m pip install cocotb==2.1.0 cocotb-bus==0.3.0 cocotbext-axi==0.1.28 cocotbext-spi==0.5.0
+          python3 -c "import cocotb; assert cocotb.__version__ == '2.1.0', cocotb.__version__"
+      - name: make cocotb
+        env:
+          SIM: ${{ matrix.sim }}
+        run: source "$OSS_CAD_SUITE/environment" && make cocotb COCOTB_PROFILE=ci COCOTB_SIMS="$SIM"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: cocotb-${{ matrix.sim }}
+          path: tests/cocotb/results/
+          if-no-files-found: ignore
+
+  formal:
+    name: formal
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/oss-cad-suite
+        with:
+          date: ${{ env.OSS_CAD_SUITE_DATE }}
+      - name: make formal
+        run: source "$OSS_CAD_SUITE/environment" && make formal
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: formal-work
+          path: formal/work/
+          if-no-files-found: ignore
+
+  gatelevel:
+    name: gatelevel
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/oss-cad-suite
+        with:
+          date: ${{ env.OSS_CAD_SUITE_DATE }}
+      - name: make gatelevel
+        run: source "$OSS_CAD_SUITE/environment" && make gatelevel
