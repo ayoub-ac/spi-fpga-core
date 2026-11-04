@@ -1,83 +1,104 @@
 # Resource estimates
 
-Numbers below are from Yosys 0.x generic synthesis (`make synth_report`).
-They are pre-place-and-route. See `SYNTH_REPORT.md` for the most recent
-run; this document explains what dominates the area and how to shrink
-it.
+Numbers below come from the open-source flow: Yosys synthesis and
+nextpnr place-and-route (`make pnr`) for iCE40 and ECP5, Yosys alone
+(`make synth_report`, [`SYNTH_REPORT.md`](SYNTH_REPORT.md)) for Xilinx
+7-series. `make doc-numbers` reruns both and rewrites the measured
+tables in this file, README.md and VERIFICATION.md. This document also
+explains what dominates the area and how to shrink it.
 
 ## Summary
 
+<!-- BEGIN GENERATED pnr-table: make doc-numbers rewrites this section -->
+Measured by `make pnr` (Yosys 0.70+286, nextpnr-0.11.1-85-ga2c64799,
+OSS CAD Suite 2026-11-01), default parameters, nextpnr seeds 1, 2, 3.
+Fmax is the register-to-register limit, without pin constraints or I/O timing.
+
+| Design | Device | LUT4 | FF | RAM cells | Fmax (MHz) | nextpnr target |
+|---|---|---|---|---|---|---|
+| spi_top | iCE40 UP5K SG48 | 420 | 294 | 4 SB_RAM40_4K | 36.5 .. 38.3 | 50 MHz: not met |
+| spi_top | ECP5 LFE5U-25F CABGA256 | 506 | 234 | 8 TRELLIS_DPR16X4 | 120.8 .. 124.3 | 100 MHz: met |
+| spi_axi4lite | iCE40 UP5K SG48 | 1279 | 824 | 2 SB_RAM40_4K | 34.8 .. 37.8 | 50 MHz: not met |
+| spi_axi4lite | ECP5 LFE5U-25F CABGA256 | 1430 | 794 | 4 TRELLIS_DPR16X4 | 112.8 .. 124.2 | 100 MHz: met |
+<!-- END GENERATED pnr-table -->
+
 | Target                         | Comment |
 |--------------------------------|---------|
-| Lattice iCE40 UP5K             | Default loopback top (master + slave + 4 FIFOs of 16x8) fits comfortably. The bit-clock generator (DIV_WIDTH-bit divisor) and the four FIFO storage arrays dominate the LUT count. |
-| Lattice ECP5 LFE5UM-25         | `synth_ecp5 -abc9` packs the FIFO byte mux into LUT4 networks well. |
-| Xilinx Artix-7 XC7A35T         | Yosys generic counts LUT6 + CARRY4. Vivado synth_design folds the FIFO storage into LUTRAM if the integrator opts in (`(* ram_style = "distributed" *)` on `mem_q`). |
-| Cyclone V 5CSEMA5F31C6         | ALMs for the FIFOs + handshake; tiny. |
-| Gowin GW1NR-9 (Tang Nano 9K)   | Not characterised. Comparable to ECP5 with vendor flow. |
+| Lattice iCE40 UP5K             | Placed and routed. Each 16 x 8 FIFO maps to one SB_RAM40_4K block RAM. |
+| Lattice ECP5 LFE5U-25F         | Placed and routed with `synth_ecp5 -abc9`. Each 16 x 8 FIFO maps to two TRELLIS_DPR16X4 LUT RAMs. |
+| Xilinx Artix-7 XC7A35T         | Yosys `synth_xilinx` only (FIFOs to RAM32M), see SYNTH_REPORT.md. Vivado was not run. |
+| Cyclone V 5CSEMA5F31C6         | Not characterised (Quartus not run). |
+| Gowin GW1NR-9 (Tang Nano 9K)   | Not characterised. |
 
-For exact LUT/FF/BRAM numbers run `make synth_report` and read
-`SYNTH_REPORT.md`.
+The place-and-route Fmax comes from a wrapper that shifts every core
+port through a serial register chain, because the cores have more ports
+than these packages have pins: it is the internal register-to-register
+limit, with no pin constraints and no I/O timing. Yosys results depend on
+the source paths, so `scripts/pnr.py` and `synth_report.sh` read the RTL
+through repository-relative paths; the Fmax of a seed also moves with
+unrelated netlist changes, so read the seed range rather than one value.
 
 ## What dominates the area
 
 For the default config (DATA_WIDTH = 8, NUM_CS = 4, FIFO_DEPTH = 16,
 DIV_WIDTH = 16, CS_DLY_W = 8):
 
-* **FIFO storage**: 4 FIFOs (master TX/RX + slave TX/RX) of 16 x 8 = 128 FFs each = 512 FFs total. With Yosys generic synth this stays as flops; with Vivado / Quartus the integrator can opt into LUTRAM.
-* **Bit-clock divisor**: 16-bit count-down counter + 16-bit reload register. ~16 LUT and 32 FF.
-* **Edge counter**: log2(2*DATA_WIDTH+2) bits for bit-progression in SHIFT state. ~5 FF.
-* **Shift registers**: 4 x DATA_WIDTH = 32 FF for master TX/RX shift + slave TX/RX shift.
-* **Master FSM**: 5 states + delay counter + cs_n decoder. ~30 FF, ~40 LUT.
-* **Slave edge detection + bit counter**: 2-FF synchroniser per input + bit counter. ~10 FF, ~10 LUT.
+* **FIFO storage**: 4 FIFOs (master TX/RX + slave TX/RX) of 16 x 8 bits. Yosys infers memory: block RAM on iCE40 (SB_RAM40_4K), LUT RAM on ECP5 (TRELLIS_DPR16X4) and Xilinx (RAM32M), so the storage is not built from flip-flops. Each FIFO adds read / write pointers, a count and a registered read port.
+* **Bit-clock divisor**: a DIV_WIDTH-bit count-down counter and the DIV_WIDTH-bit divisor latched at the start of a transfer.
+* **Edge and bit counters**: $clog2(2*DATA_WIDTH+1) and $clog2(DATA_WIDTH+1) bits for the bit progression in SHIFT state.
+* **Shift registers**: 4 x DATA_WIDTH bits for master TX/RX shift + slave TX/RX shift.
+* **Master FSM**: 6 states, the configuration latched at start, a CS_DLY_W+1-bit delay counter and NUM_CS registered CS_n outputs.
+* **Slave edge detection + bit counter**: 2-FF synchronizers on SCK, CS_n and MOSI, edge detection, a bit counter and the configuration latched at CS_n fall.
+* **AXI4-Lite wrapper**: the 16-register file is built from flip-flops and dominates `spi_axi4lite` (which contains the master only).
 * **Loopback top**: just wiring; no extra logic.
-
-Total for the loopback top: roughly 600-1500 LUT and 700-900 FF on
-iCE40 / ECP5 / Artix-7 generic synth. Master-only or slave-only builds
-land at roughly half of those numbers.
 
 ## What you can do to shrink it
 
-* **Reduce FIFO_DEPTH** if your CPU keeps up: a depth-4 FIFO is enough for many bare-metal use cases. Storage drops linearly.
+* **Reduce FIFO_DEPTH** if your CPU keeps up: a depth-4 FIFO is enough for many bare-metal use cases. Any depth >= 1 is legal; whether the storage maps to block RAM, LUT RAM or flip-flops depends on depth and family.
 * **Reduce DIV_WIDTH** if you only need a fixed-ratio SCK. DIV_WIDTH = 8 supports ratios 1..256 at clk_i/2..clk_i/512, plenty for most peripherals.
 * **Drop the master or the slave** if you only need one direction. The loopback top is just for verification; ship `spi_master` or `spi_slave` standalone in production.
 * **Drop the AXI4-Lite wrapper** if your CPU bus is a custom interface. The base master / slave have no bus dependency.
 
 ## What you can do to push throughput
 
-The master can issue back-to-back bytes with `cs_inter_byte_i = 1`,
-incurring only the FIFO load + shift register reset between bytes
-(typically `cs_hold_cycles_i + 2` cycles). At div = 0, SCK = clk_i/2;
-at clk_i = 100 MHz that is 50 MHz SCK and 12.5 MB/s effective for an
-8-bit word, ignoring the inter-byte gap.
+The master can issue back-to-back words with `cs_inter_byte_i = 1`.
+Between the last SCK edge of a word and the first SCK edge of the next,
+CS_n stays low for `cs_hold_cycles_i + cs_setup_cycles_i + clk_div_i + 4`
+clk_i cycles, so a burst word takes
+`2 * DATA_WIDTH * (clk_div_i + 1) + cs_setup_cycles_i + cs_hold_cycles_i + 3`
+cycles. At div = 0, SCK = clk_i/2; with setup = hold = 0 an 8-bit word
+takes 19 cycles, about 5.3 MB/s at clk_i = 100 MHz.
 
-For higher sustained throughput, increase DATA_WIDTH (16 / 24 / 32-bit
-words are supported). The shift register width grows linearly; the
-inter-byte gap stays the same, so the per-byte overhead amortises.
+For higher sustained throughput, increase DATA_WIDTH (DATA_WIDTH >= 2;
+2..64 bits simulated). The shift register width grows linearly; the
+inter-word gap stays the same, so the per-word overhead amortises.
 
 ## Frequency
 
-* iCE40 UP5K, default toolchain (Yosys + nextpnr), no constraints: ~80-100 MHz typical.
-* ECP5: ~150-200 MHz on generic synth.
-* Artix-7 -1 speed grade: ~250+ MHz typical with Yosys; 300+ MHz with Vivado.
-* Cyclone V: similar to Artix-7 with vendor flow.
+* iCE40 UP5K and ECP5: see the table above. Neither is a timing sign-off:
+  no pin constraints, no I/O timing, no vendor timing analysis.
+* Artix-7, Cyclone V, Gowin: not measured (no vendor tools available).
 
-The slave's SCK input must be at most ~clk_i/4 to avoid aliasing in
-the 2-FF synchroniser; for higher SCK rates use a dedicated CDC
-primitive.
+The slave samples SCK, CS_n and MOSI through 2-FF synchronizers, so its
+SCK period must be at least 4 clk_i periods plus the slave
+clock-to-output, the board round trip and the master's MISO setup, with
+SCK high and low times of at least 2 clk_i periods each (see
+[`PORT_DESCRIPTION.md`](PORT_DESCRIPTION.md)).
 
 ## Power
 
-Ballpark: 3-5 mW dynamic on iCE40 UP5K at 50 MHz with bus-active. The
-bit-clock generator toggles every 2*(div+1) cycles; the FIFOs only
-toggle on a push or pop. Static power dominated by the FPGA itself.
+Not measured or estimated. Use the vendor power estimator for your
+device with your clock and toggle rates.
 
 ## How to reproduce
 
 ```bash
-make synth_report
+make pnr            # iCE40 / ECP5 synthesis and place-and-route, build/pnr/
+make synth_report   # SYNTH_REPORT.md: Yosys iCE40 / ECP5 / Xilinx
+make doc-numbers    # both, then rewrite the tables in the docs
 ```
 
-This runs Yosys with `synth_ice40`, `synth_ecp5` (with `-abc9`), and
-`synth_xilinx`, then `stat`, and writes the result to
+`make synth_report` runs Yosys with `synth_ice40`, `synth_ecp5` (with
+`-abc9`), and `synth_xilinx`, then `stat`, and writes the result to
 `SYNTH_REPORT.md`. Vendor flows (Vivado, Quartus) are detected
 automatically when on PATH.

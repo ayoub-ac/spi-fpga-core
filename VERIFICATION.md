@@ -15,7 +15,7 @@ measured is called out as such.
 | SymbiYosys / Yices | SBY v0.70-9-g79fc9ed / Yices 2.7.0 |
 | nextpnr-ice40, nextpnr-ecp5 | nextpnr-0.11.1-85-ga2c64799 |
 | GHDL | 7.0.0-dev |
-| Python / cocotb | Python 3.11.6 / cocotb 2.1.0.dev0 |
+| Python / cocotb | Python 3.11.6 / cocotb 2.1.0.dev0 (bundled with the OSS CAD Suite); the ci profile also with cocotb 2.1.0 from PyPI, as the CI installs it |
 | cocotbext-axi / cocotbext-spi | 0.1.28 / 0.5.0 |
 | matplotlib / vcdvcd (plots only) | 3.11.2 / 2.6.0 |
 | C++ compiler | g++ 15.2.0 |
@@ -36,6 +36,7 @@ tools above) on `PATH`.
 | `make gatelevel` | CS_n / MOSI glitch check on a gate netlist with random gate delays; spi_fifo against its iCE40 block-RAM netlist | 24.5 s |
 | `make params` | 32 legal / illegal parameter sets through Yosys, Verilator, Icarus | 4.0 s |
 | `make pnr` | Yosys + nextpnr, iCE40 UP5K and ECP5-25, 3 seeds | 37 s |
+| `make doc-numbers` | `make pnr` and `make synth_report`, then `scripts/update_numbers.py` rewrites the generated tables in README.md, RESOURCE_ESTIMATES.md and this file | 106 s (repository on the Windows file system under WSL) |
 | `make waves` | timing plots (PNG) in `tests/cocotb/results/waves/` | 28.6 s |
 | `make vhdl-test` | GHDL analysis and mixed-language elaboration check of the VHDL wrapper | 0.6 s |
 
@@ -139,6 +140,13 @@ Master (`clk` = clk_i period T; from the cocotb master suite):
   exception over the 40 configurations of the W = 8 matrix (all modes,
   MSB / LSB first, clk_div_i 0, 1, 2, 3, 7, cs_setup 0, 1, 3, 6, 255,
   cs_hold 0, 1, 2, 5, 255, 1..4 words, all four CS lines).
+* With cs_inter_byte_i = 1, last SCK edge of a word to first SCK edge
+  of the next = `cs_setup_cycles_i + cs_hold_cycles_i + clk_div_i + 4` T,
+  CS_n low throughout, in all 120 burst configurations of the matrix
+  runs of the ci profile (W = 8, 13, 32, NUM_CS = 1 and 4, both
+  simulators).
+* CPHA = 0: the first bit is on MOSI from one cycle after CS_n falls, at
+  least `cs_setup_cycles_i + clk_div_i + 2` T before the first SCK edge.
 * CS_n falls and busy_o rises on the clock edge that samples start_i
   (SCK already at CPOL); xfer_done_o is a one-cycle pulse one cycle after
   CS_n rises, and busy_o falls with it. A start with an empty TX FIFO,
@@ -243,17 +251,31 @@ seeds 1, 2, 3. Resource counts are from synthesis of the core alone.
 Fmax is from a wrapper that serializes every core port (the cores have
 more ports than these packages have pins): it is the internal
 register-to-register limit, with no pin constraints and no I/O timing.
+The v1.0 column is v1.0.0 (ae8319d) through the same script and tools.
 
-| Design | Device | LUT4 | FF | Block RAM | LUTRAM | Fmax (MHz), seeds 1..3 | v1.0, same flow |
+<!-- BEGIN GENERATED pnr-v10: make doc-numbers rewrites this section -->
+Measured by `make pnr` (Yosys 0.70+286, nextpnr-0.11.1-85-ga2c64799,
+OSS CAD Suite 2026-11-01), default parameters, nextpnr seeds 1, 2, 3.
+
+| Design | Device | LUT4 | FF | RAM cells | Fmax (MHz) | v1.0, same flow | Fmax vs v1.0 |
 |---|---|---|---|---|---|---|---|
-| spi_top | iCE40 UP5K SG48 | 420 | 294 | 4 SB_RAM40_4K | - | 36.2 .. 37.0 (target 50: not met) | 417 LUT4, 286 FF, 39.9 .. 42.7 |
-| spi_top | ECP5 LFE5U-25F | 599 | 234 | 0 | 8 DPR16X4 | 109.8 .. 122.9 (target 100: met) | 363 LUT4, 226 FF, 154.0 .. 163.5 |
-| spi_axi4lite | iCE40 UP5K SG48 | 1276 | 824 | 2 SB_RAM40_4K | - | 36.4 .. 37.3 (target 50: not met) | 1338 LUT4, 794 FF, 36.4 .. 38.1 |
-| spi_axi4lite | ECP5 LFE5U-25F | 1518 | 794 | 0 | 4 DPR16X4 | 107.9 .. 115.2 (target 100: met) | 1296 LUT4, 764 FF, 133.6 .. 138.0 |
+| spi_top | iCE40 UP5K SG48 | 420 | 294 | 4 SB_RAM40_4K | 36.5 .. 38.3 (target 50 MHz: not met) | 417 LUT4, 286 FF, 39.9 .. 42.7 | 9 .. 10 % slower |
+| spi_top | ECP5 LFE5U-25F CABGA256 | 506 | 234 | 8 TRELLIS_DPR16X4 | 120.8 .. 124.3 (target 100 MHz: met) | 363 LUT4, 226 FF, 154.0 .. 163.5 | 22 .. 24 % slower |
+| spi_axi4lite | iCE40 UP5K SG48 | 1279 | 824 | 2 SB_RAM40_4K | 34.8 .. 37.8 (target 50 MHz: not met) | 1338 LUT4, 794 FF, 36.4 .. 38.1 | within the seed spread |
+| spi_axi4lite | ECP5 LFE5U-25F CABGA256 | 1430 | 794 | 4 TRELLIS_DPR16X4 | 112.8 .. 124.2 (target 100 MHz: met) | 1296 LUT4, 764 FF, 133.6 .. 138.0 | 10 .. 16 % slower |
+<!-- END GENERATED pnr-v10 -->
 
-v1.1 is slower than v1.0 on ECP5 (spi_top 25..29 %, spi_axi4lite
-17..19 %, comparing the seed ranges) and on iCE40 for spi_top
-(9..13 %); spi_axi4lite on iCE40 is unchanged within the seed spread.
+The numbers move with netlist changes that do not touch the critical
+paths. Yosys keeps the source path of every cell in its src attributes
+and the path changes the mapping: with absolute paths of one checkout
+the ECP5 spi_top netlist had 599 LUT4 instead of 506 through `rtl/...`,
+so `scripts/pnr.py` reads the RTL through repository-relative paths
+(two checkouts in different directories then gave identical results).
+Changing only the VERSION constant from 0x0001_0000 to 0x0001_0100
+changed spi_axi4lite on ECP5 from 1260 to 1430 LUT4 and from
+109.0 .. 115.3 to 112.8 .. 124.2 MHz, and on iCE40 from 34.2 .. 36.4 to
+34.8 .. 37.8 MHz. Compare seed ranges, not single values.
+
 The critical paths run through the master FSM next-state logic (start /
 state / delay counter) into the TX FIFO write enable or the delay
 counter. Reverting single v1.1 changes in experiments (FIFO
@@ -286,8 +308,10 @@ Yosys `synth_ice40`, `synth_ecp5 -abc9` and `synth_xilinx` of spi_top
 complete (3.5 s). During `synth_xilinx` ABC prints one internal message,
 "Abc_FrameUpdateGia(): Transformation has failed", and Yosys continues;
 its effect on the Xilinx mapping was not analysed. The iCE40 / ECP5
-counts of the same synthesis scripts are in 3.9. `make synth_report` was
-not rerun, so SYNTH_REPORT.md still shows v1.0.
+counts of the same synthesis scripts are in 3.9. `make synth_report`
+writes SYNTH_REPORT.md: Yosys counts of spi_top and spi_axi4lite for
+iCE40, ECP5 and Xilinx 7-series (Vivado and Quartus skipped, not
+installed).
 
 ## 4. Defects fixed in v1.1 and the tests that cover them
 
@@ -329,7 +353,7 @@ names are unchanged.
 | spi_slave | new outputs `miso_oe_o`, `tx_underrun_o`, `rx_overrun_o`; 2-FF synchronizers add 2..3 clk_i of latency; `cpol_i` / `cpha_i` / `lsb_first_i` are latched when CS_n assertion is detected |
 | spi_top | new outputs `miso_oe_o`, `s_tx_underrun_o`, `s_rx_overrun_o`; `m_cs_sel_i` is 1 bit wide for NUM_CS = 1; `irq_err_o` is one pulse per RX word dropped by the master (was RX full and done) |
 | axi4lite_slave | new outputs `wr_event_data_o`, `wr_event_strb_o` |
-| spi_axi4lite | ports unchanged. CTRL.start acts on the written data and reads 0; TX_DATA pushes the written value; RX_DATA returns the RX FIFO head and pops it (0 when empty); IRQ_STAT is readable and write-1-to-clear; IRQ_STAT.err means a dropped RX word; registers sit at 8 n for DATA_WIDTH = 64; parameters the register map cannot hold stop elaboration (DATA_WIDTH not 32 / 64, CS_DLY_W > 8, NUM_CS > 256, FIFO_DEPTH > 65535, ...) |
+| spi_axi4lite | ports unchanged. CTRL.start acts on the written data and reads 0; TX_DATA pushes the written value; RX_DATA returns the RX FIFO head and pops it (0 when empty); IRQ_STAT is readable and write-1-to-clear; IRQ_STAT.err means a dropped RX word; registers sit at 8 n for DATA_WIDTH = 64; VERSION reads 0x0001_0100 ({major[15:0], minor[7:0], patch[7:0]}); parameters the register map cannot hold stop elaboration (DATA_WIDTH not 32 / 64, CS_DLY_W > 8, NUM_CS > 256, FIFO_DEPTH > 65535, ...) |
 | spi_top_vhdl | added the four FIFO count ports and the three new outputs; `m_cs_sel_i` width follows NUM_CS; NUM_CS = 1 allowed |
 
 ## 6. Not verified
@@ -354,16 +378,13 @@ names are unchanged.
   the port mapping are checked).
 * Power: no measurement or estimate was made.
 
-## 7. Documentation not yet updated for v1.1
+## 7. Documentation and CI
 
 README.md, PORT_DESCRIPTION.md, SECURITY.md, RESOURCE_ESTIMATES.md,
-SYNTH_REPORT.md, LICENSE.md and vhdl_wrapper/README.md still describe
-v1.0 except for the `irq_err_o` and `cs_sel_i` rows. Known stale
-statements: the SVA and coverage counts (now 9 properties, 12 bins;
-`p_cs_before_sck` was replaced by three SCK idle properties), the test
-lists, the CS setup / hold and start-to-SCK latencies (see 3.4), the
-slave timing requirements and new ports (`miso_oe_o`, `tx_underrun_o`,
-`rx_overrun_o`, master `rx_overrun_o`, `RX_FWFT`, `FWFT`), the AXI
-register semantics of section 5, the FIFO mapping (block RAM / LUTRAM,
-not flip-flops) and the Fmax, LUT and power figures (see 3.9; power is
-unmeasured), and the synthesis report, which is from v1.0.
+SYNTH_REPORT.md, LICENSE.md and vhdl_wrapper/README.md describe v1.1;
+CHANGELOG.md lists the fixes and interface changes. Every synthesis and
+P&R number in them comes from `make doc-numbers`.
+`.github/workflows/ci.yml` runs lint, test, params, vhdl-test, the cocotb
+ci profile on both simulators, formal and gatelevel on GitHub Actions
+with OSS CAD Suite 2026-11-01 and cocotb 2.1.0 from PyPI; its commands
+were run locally on a copy of the same OSS CAD Suite build.

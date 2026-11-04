@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License along with thi
 
 The RTL is provided as is, without warranty of any kind, to the extent permitted by applicable law (GPL-3.0 sections 15 and 16).
 
-The full GPL-3.0 text is canonical and lives at the FSF link above. A copy is available for convenience: <https://www.gnu.org/licenses/gpl-3.0.txt>.
+The full GPL-3.0 text is in [COPYING](COPYING).
 
 **What this means in practice**: if you use this RTL in a project, the project itself (including any FPGA bitstream produced from it) must also be released under GPL-3.0-or-later. The GPL is "viral" — your downstream users must receive the same rights you received, including the right to the complete corresponding source.
 
@@ -36,8 +36,8 @@ Terms (scope, fee, support) are agreed per project. To request a quote, open a G
 
 ## Trademarks
 
-"SPI" is in the public domain; the protocol was published by Motorola (now NXP) without trademark assertion. "AMBA" / "AXI" are registered trademarks of Arm Limited; the AXI4-Lite wrapper is provided under the same public-implementation terms documented in the AXI specification (ARM IHI 0022).
+AMBA and AXI are trademarks or registered trademarks of Arm Limited. This project is not affiliated with or endorsed by Arm or NXP.
 
 ## Patents
 
-The base SPI protocol has been in public use since the early 1980s and is unencumbered by patents in the United States and the European Union. The author makes no warranty about patent freedom in other jurisdictions; if you ship hardware globally you are responsible for your own patent due diligence.
+The author makes no representation or warranty about patent freedom in any jurisdiction. You are responsible for your own patent due diligence.

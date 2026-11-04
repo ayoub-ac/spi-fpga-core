@@ -74,15 +74,15 @@ def versus(new, old):
     """Fmax change of the seed range new against old, in percent."""
     if min(new) <= max(old) and min(old) <= max(new):
         return "within the seed spread"
-    a, b = sorted((100 * (min(new) / min(old) - 1), 100 * (max(new) / max(old) - 1)))
-    return f"{a:+.0f} .. {b:+.0f} %"
+    a, b = sorted(abs(100 * (n / o - 1)) for n, o in ((min(new), min(old)), (max(new), max(old))))
+    return f"{a:.0f} .. {b:.0f} % {'faster' if min(new) > max(old) else 'slower'}"
 
 
 def tools_line(s):
     t = s["tools"]
     seeds = ", ".join(map(str, s["seeds"]))
-    return (f"Measured by `make pnr` with {t['yosys']} and nextpnr {t['nextpnr']} "
-            f"(OSS CAD Suite {t['oss_cad_suite']}), default parameters, nextpnr seeds {seeds}.")
+    return (f"Measured by `make pnr` ({t['yosys']}, {t['nextpnr']},\n"
+            f"OSS CAD Suite {t['oss_cad_suite']}), default parameters, nextpnr seeds {seeds}.")
 
 
 def render_pnr_table(s):
