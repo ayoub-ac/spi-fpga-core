@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later OR Commercial
+// SPDX-License-Identifier: GPL-3.0-or-later OR LicenseRef-Commercial
 //
 // SPI slave controller.
 //
@@ -205,34 +205,40 @@ module spi_slave #(
 
   // Configuration in force: live while no frame is active, latched during
   // a frame (the latch is taken on the cycle CS_n assertion is detected).
-  logic cpol_q, cpha_q, lsb_q;
-  logic cpol_f, cpha_f, lsb_f;
-  assign cpol_f = active_q ? cpol_q : cpol_i;
-  assign cpha_f = active_q ? cpha_q : cpha_i;
+  // Only the sampling edge type (rise_q = CPOL == CPHA) and the bit order
+  // are latched.
+  logic rise_q, lsb_q;
+  logic lsb_f;
   assign lsb_f  = active_q ? lsb_q  : lsb_first_i;
 
   // Sampling edge: rising for modes 0 and 3, falling for modes 1 and 2.
+  // Inside a frame from the latched type; in the cycle the CS_n assertion
+  // is detected (in_frame = cs_fall) from the live configuration.
   logic sample_edge;
-  assign sample_edge = in_frame && ((cpol_f == cpha_f) ? sck_rise : sck_fall);
+  assign sample_edge = active_q ? (!cs_n_s && (rise_q ? sck_rise : sck_fall))
+                                : (cs_fall && ((cpol_i == cpha_i) ? sck_rise : sck_fall));
 
   // -------------------------------------------------------------
   // Shift registers
   // -------------------------------------------------------------
   logic [BIT_W-1:0]      bit_cnt_q;        // bits of the current word sampled
+  logic                  bit_first_q;      // bit_cnt_q == 0
+  logic                  bit_last_q;       // bit_cnt_q == DATA_WIDTH-1
   logic [DATA_WIDTH-1:0] tx_shift_q;       // MSB is on MISO
   logic [DATA_WIDTH-1:0] rx_shift_q;
   logic                  tx_from_fifo_q;   // tx_shift_q holds the unpopped FIFO head
+  logic                  pop_armed_q;      // bit_first_q && tx_from_fifo_q
 
   logic                  word_first, word_last;
   logic [DATA_WIDTH-1:0] rx_word;
   logic [DATA_WIDTH-1:0] tx_next;
-  assign word_first = sample_edge && (bit_cnt_q == '0);
-  assign word_last  = sample_edge && (bit_cnt_q == BIT_W'(DATA_WIDTH - 1));
+  assign word_first = sample_edge && bit_first_q;
+  assign word_last  = sample_edge && bit_last_q;
   assign rx_word    = {rx_shift_q[DATA_WIDTH-2:0], mosi_s};
   assign tx_next    = tx_fifo_empty ? '0
                     : (lsb_f ? bit_reverse(tx_fifo_head) : tx_fifo_head);
 
-  assign tx_fifo_rd_en = word_first && tx_from_fifo_q;
+  assign tx_fifo_rd_en = sample_edge && pop_armed_q;
   assign rx_fifo_wr_en = word_last;
   assign rx_fifo_wdata = lsb_f ? bit_reverse(rx_word) : rx_word;
 
@@ -241,13 +247,15 @@ module spi_slave #(
       sck_prev_q     <= 1'b0;
       cs_n_prev_q    <= 1'b0;
       active_q       <= 1'b0;
-      cpol_q         <= 1'b0;
-      cpha_q         <= 1'b0;
+      rise_q         <= 1'b1;
       lsb_q          <= 1'b0;
       bit_cnt_q      <= '0;
+      bit_first_q    <= 1'b1;
+      bit_last_q     <= 1'b0;
       tx_shift_q     <= '0;
       rx_shift_q     <= '0;
       tx_from_fifo_q <= 1'b0;
+      pop_armed_q    <= 1'b0;
       xfer_done_o    <= 1'b0;
       tx_underrun_o  <= 1'b0;
       rx_overrun_o   <= 1'b0;
@@ -260,26 +268,34 @@ module spi_slave #(
       rx_overrun_o  <= rx_fifo_overflow;
 
       if (!active_q) begin
-        cpol_q <= cpol_i;
-        cpha_q <= cpha_i;
+        rise_q <= (cpol_i == cpha_i);
         lsb_q  <= lsb_first_i;
       end
 
       if (!in_frame) begin
         // Between frames: keep the next word on MISO.
         bit_cnt_q      <= '0;
+        bit_first_q    <= 1'b1;
+        bit_last_q     <= 1'b0;
         tx_shift_q     <= tx_next;
         tx_from_fifo_q <= !tx_fifo_empty;
+        pop_armed_q    <= !tx_fifo_empty;
       end else if (sample_edge) begin
         rx_shift_q <= rx_word;
         if (word_last) begin
           // Next word of a burst: its bit 0 goes on MISO now.
           bit_cnt_q      <= '0;
+          bit_first_q    <= 1'b1;
+          bit_last_q     <= 1'b0;
           tx_shift_q     <= tx_next;
           tx_from_fifo_q <= !tx_fifo_empty;
+          pop_armed_q    <= !tx_fifo_empty;
         end else begin
-          bit_cnt_q  <= bit_cnt_q + 1'b1;
-          tx_shift_q <= {tx_shift_q[DATA_WIDTH-2:0], 1'b0};
+          bit_cnt_q   <= bit_cnt_q + 1'b1;
+          bit_first_q <= 1'b0;
+          pop_armed_q <= 1'b0;
+          bit_last_q  <= (bit_cnt_q == BIT_W'(DATA_WIDTH - 2));
+          tx_shift_q  <= {tx_shift_q[DATA_WIDTH-2:0], 1'b0};
           if (word_first) tx_from_fifo_q <= 1'b0;   // popped this cycle
         end
       end

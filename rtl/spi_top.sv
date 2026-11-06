@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later OR Commercial
+// SPDX-License-Identifier: GPL-3.0-or-later OR LicenseRef-Commercial
 //
 // Top-level integrating spi_master and spi_slave with the SPI bus wired
 // in loopback (master.MOSI -> slave.MOSI, slave.MISO -> master.MISO,

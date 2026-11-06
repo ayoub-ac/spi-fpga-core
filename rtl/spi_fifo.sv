@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later OR Commercial
+// SPDX-License-Identifier: GPL-3.0-or-later OR LicenseRef-Commercial
 //
 // Parametrizable single-clock synchronous FIFO.
 //
@@ -31,6 +31,8 @@
 //   * overflow_o / underflow_o flag, in the same cycle, a write that was
 //     dropped (FIFO full and no accepted read) or a read that was
 //     ignored (no word available).
+//   * empty_o and full_o come from flip-flops updated together with the
+//     count, so the read / write acceptance has no count compare in front.
 //
 // Reset is synchronous, active-low (rst_ni). After reset full=0, empty=1,
 // count=0, rd_data_o=0. The storage array is not reset.
@@ -83,6 +85,8 @@ module spi_fifo #(
   logic [PTR_W-1:0] wr_ptr_q;
   logic [PTR_W-1:0] rd_ptr_q;
   logic [CNT_W-1:0] count_q;        // words held, including an FWFT head
+  logic             zero_q;         // count_q == 0
+  logic             full_q;         // count_q == DEPTH
   logic             head_valid_q;   // FWFT: rd_data_o holds the head word
 
   logic             avail;          // a word can be popped this cycle
@@ -91,20 +95,21 @@ module spi_fifo #(
   logic             mem_rd;         // read the memory into rd_data_o
 
   if (FWFT) begin : g_fwft
-    logic [CNT_W-1:0] mem_count;    // words still in the memory array
-    assign mem_count = count_q - CNT_W'(head_valid_q);
-    assign avail     = head_valid_q;
+    // The memory array holds a word: count_q > head_valid_q.
+    logic mem_any;
+    assign mem_any = !zero_q && !(head_valid_q && (count_q == CNT_W'(1)));
+    assign avail   = head_valid_q;
     // Refill the head when it is empty or being popped. The word read is
     // at least one clock old, so the memory is never read and written at
     // the same address in one cycle.
-    assign mem_rd    = (mem_count != '0) && (!head_valid_q || do_rd);
+    assign mem_rd  = mem_any && (!head_valid_q || do_rd);
   end else begin : g_std
-    assign avail     = (count_q != '0);
-    assign mem_rd    = do_rd;
+    assign avail   = !zero_q;
+    assign mem_rd  = do_rd;
   end
 
   assign do_rd = rd_en_i && avail;
-  assign do_wr = wr_en_i && ((count_q != CNT_W'(DEPTH)) || do_rd);
+  assign do_wr = wr_en_i && (!full_q || do_rd);
 
   always_ff @(posedge clk_i) begin
     if (rst_ni && do_wr) mem_q[wr_ptr_q] <= wr_data_i;
@@ -115,6 +120,8 @@ module spi_fifo #(
       wr_ptr_q     <= '0;
       rd_ptr_q     <= '0;
       count_q      <= '0;
+      zero_q       <= 1'b1;
+      full_q       <= 1'b0;
       head_valid_q <= 1'b0;
     end else begin
       if (do_wr)  wr_ptr_q <= ptr_inc(wr_ptr_q);
@@ -122,11 +129,11 @@ module spi_fifo #(
       // Count update: an accepted write and read in the same cycle leave
       // the count unchanged (at full both are accepted, at empty only the
       // write).
-      case ({do_wr, do_rd})
-        2'b10:   count_q <= count_q + 1'b1;
-        2'b01:   count_q <= count_q - 1'b1;
-        default: count_q <= count_q;
-      endcase
+      if (do_wr != do_rd) begin
+        count_q <= do_rd ? count_q - 1'b1 : count_q + 1'b1;
+        zero_q  <= do_rd && (count_q == CNT_W'(1));
+        full_q  <= !do_rd && (count_q == CNT_W'(DEPTH - 1));
+      end
       if (FWFT) head_valid_q <= mem_rd || (head_valid_q && !do_rd);
     end
   end
@@ -141,7 +148,7 @@ module spi_fifo #(
   end
 
   assign empty_o     = !avail;
-  assign full_o      = (count_q == CNT_W'(DEPTH));
+  assign full_o      = full_q;
   assign count_o     = count_q;
   assign overflow_o  = wr_en_i && !do_wr;
   assign underflow_o = rd_en_i && !do_rd;

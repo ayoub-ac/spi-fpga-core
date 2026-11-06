@@ -86,6 +86,19 @@
       w_edge_zero: assert (edge_cnt_q == '0);
       if (state_q != S_IDLE) w_sck_rest: assert (sck_q == cpol_q);
     end
+    // registered terminal flags of the counters
+    w_last_edge: assert (last_edge_q == (edge_cnt_q == 2*DATA_WIDTH-1));
+    w_pre_last:  assert (pre_last_q == (edge_cnt_q == 2*DATA_WIDTH-2));
+    if (state_q == S_SHIFT) begin
+      w_shift_edge: assert (shift_edge_q == (cpha_q ? (!edge_cnt_q[0] && edge_cnt_q != 0)
+                                                    : (edge_cnt_q[0] && edge_cnt_q != 2*DATA_WIDTH-1)));
+      w_tick:       assert (tick_q == (div_cnt_q == 0));
+      w_div_rng:    assert (div_cnt_q <= div_q);
+    end else begin
+      w_shift_rest: assert (!shift_edge_q);
+    end
+    if (state_q == S_CS_SETUP || state_q == S_CS_HOLD)
+      w_dly_zero: assert (dly_zero_q == (dly_cnt_q == 0));
   end
 `endif
 

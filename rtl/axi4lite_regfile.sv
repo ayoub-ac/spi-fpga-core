@@ -115,107 +115,68 @@ module axi4lite_regfile #(
   assign rd_idx = rd_idx_full[IDX_W-1:0];
 
   // ------------------------------------------------------------------
-  // Storage array.
+  // Storage: one word per register, written through its own decoded byte
+  // enables (no read-modify-write of the addressed word). The attribute
+  // of each register is a constant, so an RO register has no storage
+  // (it shows its reset value on reg_storage_o) and needs no write logic.
+  //   RW   a write replaces the strobed bytes
+  //   RO   writes are silently ignored (BRESP still OKAY)
+  //   RC   writes are ignored; a read returns the stored value and clears
+  //        it on the read handshake (read-clear)
+  //   W1C  a written 1 clears that bit in the strobed bytes
   // ------------------------------------------------------------------
-  logic [DATA_WIDTH-1:0] regs_q [NUM_REGS];
+  logic rd_ok;
+  assign rd_ok = rd_en_i && !rd_out_of_range_o;
 
-  // Unpack reset value for register `i`. Only used in the synchronous
-  // reset block, where Yosys is happy to accept it as a function call
-  // with an integer argument.
-  function automatic logic [DATA_WIDTH-1:0] reg_reset_slice(input integer i);
-    reg_reset_slice = REG_RESET[i*DATA_WIDTH +: DATA_WIDTH];
-  endfunction
+  // What a read of each register returns: rd_payload_i for RO, the stored
+  // value otherwise (an RC read returns the value before the clear).
+  logic [NUM_REGS*DATA_WIDTH-1:0] rd_words;
 
-  // Apply byte strobes to a stored word.
-  function automatic logic [DATA_WIDTH-1:0] apply_strb(
-      input logic [DATA_WIDTH-1:0]   old_v,
-      input logic [DATA_WIDTH-1:0]   new_v,
-      input logic [DATA_WIDTH/8-1:0] strb);
-    logic [DATA_WIDTH-1:0] r;
-    integer b;
-    r = old_v;
-    for (b = 0; b < BYTES; b = b + 1) begin
-      if (strb[b]) r[b*8 +: 8] = new_v[b*8 +: 8];
-    end
-    apply_strb = r;
-  endfunction
-
-  // ------------------------------------------------------------------
-  // Storage update: write port + W1C clears + RC clears.
-  // ------------------------------------------------------------------
-  // Per-cycle attribute lookup. We pre-compute the integer index and
-  // look up REG_ATTR with a 32-bit zero-extended index, which is what
-  // Yosys / Vivado / older simulators expect from a packed-array slice.
-  logic [1:0]      rd_attr_seq;
-  logic [1:0]      wr_attr_seq;
-  logic [31:0]     rd_idx32;
-  logic [31:0]     wr_idx32;
-  assign rd_idx32    = {{(32-IDX_W){1'b0}}, rd_idx};
-  assign wr_idx32    = {{(32-IDX_W){1'b0}}, wr_idx};
-  assign rd_attr_seq = REG_ATTR[2*rd_idx32 +: 2];
-  assign wr_attr_seq = REG_ATTR[2*wr_idx32 +: 2];
-
-  integer i;
-  always_ff @(posedge clk_i) begin
-    if (!rst_ni) begin
-      for (i = 0; i < NUM_REGS; i = i + 1)
-        regs_q[i] <= reg_reset_slice(i);
-    end else begin
-      // Read-clear: if the read port is enabled and the addressed
-      // register is RC and in range, clear it on this cycle. Note that
-      // the rd_data_o output below presents the OLD value (before the
-      // clear), which is the standard RC behaviour (read returns the
-      // accumulated status, then clears).
-      if (rd_en_i && !rd_out_of_range_o && rd_attr_seq == 2'b10) begin
-        regs_q[rd_idx] <= '0;
-      end
-
-      // Write port. If both rd and wr fire on the same cycle to the
-      // SAME register, and the register is RC, the RC clear takes
-      // precedence (i.e. wr is dropped). This is the conventional
-      // ordering for a status register that software RW-1-clears.
-      if (wr_en_i && !wr_out_of_range_o) begin
-        if (wr_attr_seq == 2'b00) begin
-          // RW
-          if (!(rd_en_i && !rd_out_of_range_o &&
-                rd_idx == wr_idx && rd_attr_seq == 2'b10))
-            regs_q[wr_idx] <= apply_strb(regs_q[wr_idx], wr_data_i, wr_strb_i);
-        end else if (wr_attr_seq == 2'b11) begin
-          // W1C: bits in wr_data_i that are 1 clear the corresponding
-          // stored bits. Byte-strobed: a byte with strb=0 is untouched.
-          for (i = 0; i < BYTES; i = i + 1) begin
-            if (wr_strb_i[i])
-              regs_q[wr_idx][i*8 +: 8] <=
-                  regs_q[wr_idx][i*8 +: 8] & ~wr_data_i[i*8 +: 8];
+  genvar gi;
+  generate
+    for (gi = 0; gi < NUM_REGS; gi = gi + 1) begin : g_reg
+      localparam logic [1:0] ATTR = REG_ATTR[2*gi +: 2];
+      localparam logic [DATA_WIDTH-1:0] RESET = REG_RESET[gi*DATA_WIDTH +: DATA_WIDTH];
+      // The one aligned address of register gi (none if ADDR_WIDTH cannot
+      // reach it): a hit is an in-range access to this register.
+      localparam bit REACH = ((gi << ALIGN) >> ADDR_WIDTH) == 0;
+      logic                  wr_hit, rd_hit;
+      logic [DATA_WIDTH-1:0] q;
+      assign wr_hit = REACH && wr_en_i && (wr_addr_i == ADDR_WIDTH'(gi << ALIGN));
+      assign rd_hit = REACH && rd_en_i && (rd_addr_i == ADDR_WIDTH'(gi << ALIGN));
+      if (ATTR == 2'b01) begin : g_ro
+        assign q = RESET;
+        assign rd_words[gi*DATA_WIDTH +: DATA_WIDTH] = rd_payload_i[gi*DATA_WIDTH +: DATA_WIDTH];
+      end else begin : g_stored
+        always_ff @(posedge clk_i) begin
+          if (!rst_ni) begin
+            q <= RESET;
+          end else if (ATTR == 2'b10) begin
+            if (rd_hit) q <= '0;
+          end else begin
+            for (int b = 0; b < BYTES; b++)
+              if (wr_hit && wr_strb_i[b])
+                q[b*8 +: 8] <= (ATTR == 2'b11) ? (q[b*8 +: 8] & ~wr_data_i[b*8 +: 8])
+                                               : wr_data_i[b*8 +: 8];
           end
         end
-        // RO (2'b01) and RC (2'b10) silently ignore writes.
+        assign rd_words[gi*DATA_WIDTH +: DATA_WIDTH] = q;
       end
+      assign reg_storage_o[gi*DATA_WIDTH +: DATA_WIDTH] = q;
     end
-  end
+  endgenerate
 
   // ------------------------------------------------------------------
-  // Combinational read mux.
+  // Combinational read mux. The index is zero-extended to 32 bits, which
+  // is what Yosys / Vivado / older simulators expect from a packed-array
+  // slice.
   // ------------------------------------------------------------------
-  logic [DATA_WIDTH-1:0] rd_payload_word;
-  assign rd_payload_word = rd_payload_i[rd_idx32 * DATA_WIDTH +: DATA_WIDTH];
+  logic [31:0] rd_idx32;
+  assign rd_idx32 = {{(32-IDX_W){1'b0}}, rd_idx};
 
   always_comb begin
     rd_data_o = '0;
-    if (rd_en_i && !rd_out_of_range_o) begin
-      if (rd_attr_seq == 2'b01) rd_data_o = rd_payload_word;
-      else                      rd_data_o = regs_q[rd_idx];
-    end
+    if (rd_ok) rd_data_o = rd_words[rd_idx32 * DATA_WIDTH +: DATA_WIDTH];
   end
-
-  // ------------------------------------------------------------------
-  // Pack storage out for user logic.
-  // ------------------------------------------------------------------
-  genvar gi;
-  generate
-    for (gi = 0; gi < NUM_REGS; gi = gi + 1) begin : g_pack
-      assign reg_storage_o[gi*DATA_WIDTH +: DATA_WIDTH] = regs_q[gi];
-    end
-  endgenerate
 
 endmodule

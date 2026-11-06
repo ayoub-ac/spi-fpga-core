@@ -143,6 +143,7 @@
     f_slot = (rp + n - hv) % DEPTH;
   endfunction
   always @(*) if (f_past_valid) begin
+    w_zero_cnt: assert (zero_q == (count_q == 0));
     w_ptr_rng: assert (f_wp < DEPTH && f_rp < DEPTH);
     w_ptr_cnt: assert ((f_wp + DEPTH - f_rp) % DEPTH == f_mc % DEPTH);
     if (FWFT) begin
