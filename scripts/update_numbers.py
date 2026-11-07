@@ -74,8 +74,9 @@ def versus(new, old):
     """Fmax change of the seed range new against old, in percent."""
     if min(new) <= max(old) and min(old) <= max(new):
         return "within the seed spread"
-    a, b = sorted(abs(100 * (n / o - 1)) for n, o in ((min(new), min(old)), (max(new), max(old))))
-    return f"{a:.0f} .. {b:.0f} % {'faster' if min(new) > max(old) else 'slower'}"
+    a, b = sorted(round(abs(100 * (n / o - 1))) for n, o in ((min(new), min(old)), (max(new), max(old))))
+    pct = f"{a}" if a == b else f"{a} .. {b}"
+    return f"{pct} % {'faster' if min(new) > max(old) else 'slower'}"
 
 
 def tools_line(s):

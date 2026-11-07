@@ -83,10 +83,10 @@ Fmax is the register-to-register limit, without pin constraints or I/O timing.
 
 | Design | Device | LUT4 | FF | RAM cells | Fmax (MHz) | nextpnr target |
 |---|---|---|---|---|---|---|
-| spi_top | iCE40 UP5K SG48 | 420 | 294 | 4 SB_RAM40_4K | 36.5 .. 38.3 | 50 MHz: not met |
-| spi_top | ECP5 LFE5U-25F CABGA256 | 506 | 234 | 8 TRELLIS_DPR16X4 | 120.8 .. 124.3 | 100 MHz: met |
-| spi_axi4lite | iCE40 UP5K SG48 | 1279 | 824 | 2 SB_RAM40_4K | 34.8 .. 37.8 | 50 MHz: not met |
-| spi_axi4lite | ECP5 LFE5U-25F CABGA256 | 1430 | 794 | 4 TRELLIS_DPR16X4 | 112.8 .. 124.2 | 100 MHz: met |
+| spi_top | iCE40 UP5K SG48 | 348 | 291 | 4 SB_RAM40_4K | 55.0 .. 57.6 | 50 MHz: met |
+| spi_top | ECP5 LFE5U-25F CABGA256 | 298 | 231 | 8 TRELLIS_DPR16X4 | 213.4 .. 227.0 | 100 MHz: met |
+| spi_axi4lite | iCE40 UP5K SG48 | 622 | 586 | 2 SB_RAM40_4K | 51.2 .. 53.4 | 50 MHz: met |
+| spi_axi4lite | ECP5 LFE5U-25F CABGA256 | 729 | 556 | 4 TRELLIS_DPR16X4 | 178.5 .. 184.8 | 100 MHz: met |
 <!-- END GENERATED pnr-table -->
 
 Yosys-only counts, Xilinx 7-series included, are in

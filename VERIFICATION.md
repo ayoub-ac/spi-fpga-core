@@ -29,18 +29,18 @@ tools above) on `PATH`.
 | Command | What it does | Time measured |
 |---|---|---|
 | `make lint` | Verilator `-Wall` lint of the spi_top testbench, `spi_axi4lite` and its testbench | 0.2 s |
-| `make test` | Verilator C++ regressions: `tb/sim_main.cpp` (spi_top loopback, SVA, coverage) and `tb/sim_axi.cpp` (spi_axi4lite) | 9.8 s incl. both Verilator builds |
-| `make cocotb` | cocotb regression, profile `ci`, on Verilator and Icarus | 5 min 18 s (210 s + 109 s) |
-| `COCOTB_PROFILE=long make cocotb` | long random runs, all word widths (Icarus: the AXI suites) | 14 min 53 s (891 s + 2 s) |
-| `make formal` | SymbiYosys: 25 tasks (proofs, bounded check, covers) | 1 min 53 s |
-| `make gatelevel` | CS_n / MOSI glitch check on a gate netlist with random gate delays; spi_fifo against its iCE40 block-RAM netlist | 24.5 s |
+| `make test` | Verilator C++ regressions: `tb/sim_main.cpp` (spi_top loopback, SVA, coverage) and `tb/sim_axi.cpp` (spi_axi4lite) | 10 s incl. both Verilator builds |
+| `make cocotb` | cocotb regression, profile `ci`, on Verilator and Icarus | 5 min 17 s (209 s + 108 s) |
+| `COCOTB_PROFILE=long make cocotb` | long random runs, all word widths (Icarus: the AXI suites) | 15 min 3 s (901 s + 2 s) |
+| `make formal` | SymbiYosys: 25 tasks (proofs, bounded check, covers) | 42 s |
+| `make gatelevel` | CS_n / MOSI glitch check on a gate netlist with random gate delays; spi_fifo against its iCE40 block-RAM netlist | 25 s |
 | `make params` | 32 legal / illegal parameter sets through Yosys, Verilator, Icarus | 4.0 s |
 | `make pnr` | Yosys + nextpnr, iCE40 UP5K and ECP5-25, 3 seeds | 37 s |
 | `make doc-numbers` | `make pnr` and `make synth_report`, then `scripts/update_numbers.py` rewrites the generated tables in README.md, RESOURCE_ESTIMATES.md and this file | 106 s (repository on the Windows file system under WSL) |
 | `make waves` | timing plots (PNG) in `tests/cocotb/results/waves/` | 28.6 s |
 | `make vhdl-test` | GHDL analysis and mixed-language elaboration check of the VHDL wrapper | 0.6 s |
 
-`make lint test cocotb formal gatelevel params` takes about 8 minutes on
+`make lint test cocotb formal gatelevel params` takes about 7 minutes on
 this host (WSL2 with 8 virtual CPUs). Every random
 run uses a fixed seed, so every result here is reproducible.
 `tests/cocotb/run.py SUITE --sim verilator|icarus [--w N] [--param K=V]
@@ -75,8 +75,8 @@ run uses a fixed seed, so every result here is reproducible.
 
 | Simulator | Suites | Tests | Failed | Wall time | Simulator crashes |
 |---|---|---|---|---|---|
-| Verilator | 24/24 | 195 | 0 | 210 s | none |
-| Icarus | 21/21 | 160 | 0 | 109 s | 4 at exit after the results (the four AXI suites) |
+| Verilator | 24/24 | 195 | 0 | 209 s | none |
+| Icarus | 21/21 | 160 | 0 | 108 s | 4 at exit after the results (the four AXI suites) |
 
 Suites: FIFO (DEPTH 1, 3, 4, 16, both read modes, 8000-cycle random
 scoreboard each), master (W = 8, 13, 32, NUM_CS = 1), slave (W = 5, 8, 32,
@@ -95,13 +95,17 @@ results file is complete. A crash before any result is written is
 retried up to twice by `run.py` and reported; a crash at exit after the
 results file is complete is reported and the results count. Neither is a
 test result. Earlier runs of the same profile also had single crashes
-before any result, which the retry absorbed.
+before any result, which the retry absorbed. The rate varies over time:
+during the reruns for the timing restructure (3.9) two Icarus runs lost
+10 and 2 suites to crashes before any result, and the unmodified v1.1
+RTL crashed the same way in the same period; the tables show complete
+runs. The cause was not found.
 
 ### 3.3 cocotb, profile `long`
 
 | Simulator | Suites | Tests | Failed | Wall time | Simulator crashes |
 |---|---|---|---|---|---|
-| Verilator | 89/89 | 642 | 0 | 891 s | 2 before any result (retried, passed) |
+| Verilator | 89/89 | 642 | 0 | 901 s | none |
 | Icarus | 4/4 | 23 | 0 | 2 s | 4 at exit after the results |
 
 Suites: FIFO DEPTH 1..17 and 32 in both read modes (36 suites); master,
@@ -186,8 +190,8 @@ invariants where needed for induction.
 
 | Job | Tasks | Assertions / covers | Parameters |
 |---|---|---|---|
-| fifo | 15 proofs, 3 cover runs | 35 / 8 | DEPTH 1, 2, 3, 4, 5, 12, 16 in both read modes; WIDTH 1 at DEPTH 4 |
-| master | 3 proofs, 90-step bounded check of the busy bound, 1 cover run | 24 / 7 | DATA_WIDTH 4 and 8, FIFO_DEPTH 2 and 4, DIV_WIDTH 1, 2, 4, CS_DLY_W 1, 2, 3, NUM_CS 1 and 4 |
+| fifo | 15 proofs, 3 cover runs | 36 / 8 | DEPTH 1, 2, 3, 4, 5, 12, 16 in both read modes; WIDTH 1 at DEPTH 4 |
+| master | 3 proofs, 90-step bounded check of the busy bound, 1 cover run | 31 / 7 | DATA_WIDTH 4 and 8, FIFO_DEPTH 2 and 4, DIV_WIDTH 1, 2, 4, CS_DLY_W 1, 2, 3, NUM_CS 1 and 4 |
 | axi | 1 proof, 1 cover run | 40 / 12 | axi4lite_slave + axi4lite_regfile, 16 registers, all four attribute types |
 
 Assertion counts include the whitebox invariants. All inputs other than
@@ -259,10 +263,10 @@ OSS CAD Suite 2026-11-01), default parameters, nextpnr seeds 1, 2, 3.
 
 | Design | Device | LUT4 | FF | RAM cells | Fmax (MHz) | v1.0, same flow | Fmax vs v1.0 |
 |---|---|---|---|---|---|---|---|
-| spi_top | iCE40 UP5K SG48 | 420 | 294 | 4 SB_RAM40_4K | 36.5 .. 38.3 (target 50 MHz: not met) | 417 LUT4, 286 FF, 39.9 .. 42.7 | 9 .. 10 % slower |
-| spi_top | ECP5 LFE5U-25F CABGA256 | 506 | 234 | 8 TRELLIS_DPR16X4 | 120.8 .. 124.3 (target 100 MHz: met) | 363 LUT4, 226 FF, 154.0 .. 163.5 | 22 .. 24 % slower |
-| spi_axi4lite | iCE40 UP5K SG48 | 1279 | 824 | 2 SB_RAM40_4K | 34.8 .. 37.8 (target 50 MHz: not met) | 1338 LUT4, 794 FF, 36.4 .. 38.1 | within the seed spread |
-| spi_axi4lite | ECP5 LFE5U-25F CABGA256 | 1430 | 794 | 4 TRELLIS_DPR16X4 | 112.8 .. 124.2 (target 100 MHz: met) | 1296 LUT4, 764 FF, 133.6 .. 138.0 | 10 .. 16 % slower |
+| spi_top | iCE40 UP5K SG48 | 348 | 291 | 4 SB_RAM40_4K | 55.0 .. 57.6 (target 50 MHz: met) | 417 LUT4, 286 FF, 39.9 .. 42.7 | 35 .. 38 % faster |
+| spi_top | ECP5 LFE5U-25F CABGA256 | 298 | 231 | 8 TRELLIS_DPR16X4 | 213.4 .. 227.0 (target 100 MHz: met) | 363 LUT4, 226 FF, 154.0 .. 163.5 | 39 % faster |
+| spi_axi4lite | iCE40 UP5K SG48 | 622 | 586 | 2 SB_RAM40_4K | 51.2 .. 53.4 (target 50 MHz: met) | 1338 LUT4, 794 FF, 36.4 .. 38.1 | 40 .. 41 % faster |
+| spi_axi4lite | ECP5 LFE5U-25F CABGA256 | 729 | 556 | 4 TRELLIS_DPR16X4 | 178.5 .. 184.8 (target 100 MHz: met) | 1296 LUT4, 764 FF, 133.6 .. 138.0 | 34 % faster |
 <!-- END GENERATED pnr-v10 -->
 
 The numbers move with netlist changes that do not touch the critical
@@ -276,12 +280,27 @@ changed spi_axi4lite on ECP5 from 1260 to 1430 LUT4 and from
 109.0 .. 115.3 to 112.8 .. 124.2 MHz, and on iCE40 from 34.2 .. 36.4 to
 34.8 .. 37.8 MHz. Compare seed ranges, not single values.
 
-The critical paths run through the master FSM next-state logic (start /
-state / delay counter) into the TX FIFO write enable or the delay
-counter. Reverting single v1.1 changes in experiments (FIFO
-write-on-full acceptance, the launch wait for SCK at CPOL, CS_n
-registered from the current instead of the next state) did not recover
-the v1.0 numbers. No timing optimization was attempted in v1.1.
+The v1.1 bug fixes first made the cores slower than v1.0 (ECP5 spi_top
+about 25 %): the critical paths ran from the master delay counter
+compare, the start / CPOL check and the TX FIFO empty compare through
+the FSM next-state logic into the TX FIFO write enable, the
+configuration latch and the counters (7 LUT levels on iCE40, 6 on
+ECP5). The timing restructure (commits 79c1479, 5010f02, aa48d2a,
+d33903b) changes no port waveform, latency or register semantic, and
+every check in sections 3.1 to 3.8 was rerun on it. It registers the
+terminal flags of the master counters and decodes the master
+transitions from the current state, latches the slave sampling edge
+type and registers its bit-counter flags, gives each AXI register its
+own decode (read-only words lose their storage), and keeps the FIFO
+empty / full flags in flip-flops. An unbounded SymbiYosys equivalence
+check (outside the repository targets) compared every output on every
+cycle against the RTL before the restructure, for small parameter sets
+of every module. The ABC mapping now has 4 LUT levels on iCE40 and 3 to
+4 on ECP5. The remaining critical paths are the slave sampling edge
+into the TX FIFO pop (iCE40 spi_top), the AXI write decode into the
+register byte enables (iCE40 spi_axi4lite), the master CS hold end into
+the TX FIFO (ECP5 spi_top) and the RX_DATA read decode into the RX FIFO
+pop (ECP5 spi_axi4lite).
 
 ### 3.10 Waveform plots (`make waves`)
 

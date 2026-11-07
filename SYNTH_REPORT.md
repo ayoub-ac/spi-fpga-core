@@ -9,12 +9,12 @@ count includes the INV cells (one LUT1 each). Place-and-route results
 
 | Toolchain                  | Target                  | Design         | Result |
 |----------------------------|-------------------------|----------------|--------|
-| Yosys synth_ice40          | iCE40 (UP5K class)      | spi_top        | 420 LUT / 294 FF / 0 LUTRAM / 4 BRAM |
-| Yosys synth_ecp5 -abc9     | ECP5 (generic)          | spi_top        | 506 LUT / 234 FF / 8 LUTRAM / 0 BRAM |
-| Yosys synth_xilinx         | Xilinx 7-series generic | spi_top        | 282 LUT / 234 FF / 8 LUTRAM / 0 BRAM |
-| Yosys synth_ice40          | iCE40 (UP5K class)      | spi_axi4lite   | 1279 LUT / 824 FF / 0 LUTRAM / 2 BRAM |
-| Yosys synth_ecp5 -abc9     | ECP5 (generic)          | spi_axi4lite   | 1430 LUT / 794 FF / 4 LUTRAM / 0 BRAM |
-| Yosys synth_xilinx         | Xilinx 7-series generic | spi_axi4lite   | 749 LUT / 794 FF / 4 LUTRAM / 0 BRAM |
+| Yosys synth_ice40          | iCE40 (UP5K class)      | spi_top        | 348 LUT / 291 FF / 0 LUTRAM / 4 BRAM |
+| Yosys synth_ecp5 -abc9     | ECP5 (generic)          | spi_top        | 298 LUT / 231 FF / 8 LUTRAM / 0 BRAM |
+| Yosys synth_xilinx         | Xilinx 7-series generic | spi_top        | 226 LUT / 231 FF / 8 LUTRAM / 0 BRAM |
+| Yosys synth_ice40          | iCE40 (UP5K class)      | spi_axi4lite   | 622 LUT / 586 FF / 0 LUTRAM / 2 BRAM |
+| Yosys synth_ecp5 -abc9     | ECP5 (generic)          | spi_axi4lite   | 729 LUT / 556 FF / 4 LUTRAM / 0 BRAM |
+| Yosys synth_xilinx         | Xilinx 7-series generic | spi_axi4lite   | 406 LUT / 556 FF / 4 LUTRAM / 0 BRAM |
 | Vivado synth_design        | Artix-7 xc7a35tcsg324-1 | spi_top        | (skipped: vivado not on PATH) |
 | Quartus Prime Standard/Lite| Cyclone V 5CSEMA5F31C6  | spi_top        | (skipped: quartus_sh not on PATH) |
 

@@ -83,6 +83,14 @@ New ports and parameters:
 | `axi4lite_slave` | outputs `wr_event_data_o`, `wr_event_strb_o` |
 | `spi_top_vhdl` | the four FIFO count ports and the three new `spi_top` outputs |
 
+### Performance
+
+- Timing restructure of the master, slave, FIFO and AXI register file
+  with no change to port waveforms, latencies or register semantics.
+  Open-source place-and-route Fmax is now above v1.0 on both devices and
+  iCE40 reaches 50 MHz; LUT and flip-flop counts went down. Numbers in
+  VERIFICATION.md section 3.9.
+
 ### Added
 
 - cocotb regression on Verilator and Icarus (`make cocotb`), SymbiYosys
