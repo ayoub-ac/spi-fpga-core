@@ -132,7 +132,7 @@ is correct for every CS setup swept (0.3 T .. 3.5 T); MOSI hold failures
 only below 1 T; no failure for any CS high time swept. The first run of
 this profile failed four suites at non-default FIFO depths and at W = 2
 because the tests queued more words than the FIFOs hold or wrote values
-wider than W; the tests were corrected (commit 59789c3), the RTL was not
+wider than W; the tests were corrected (commit 870e93c), the RTL was not
 changed.
 
 ### 3.4 Timing behaviour measured in simulation
@@ -285,8 +285,8 @@ about 25 %): the critical paths ran from the master delay counter
 compare, the start / CPOL check and the TX FIFO empty compare through
 the FSM next-state logic into the TX FIFO write enable, the
 configuration latch and the counters (7 LUT levels on iCE40, 6 on
-ECP5). The timing restructure (commits 79c1479, 5010f02, aa48d2a,
-d33903b) changes no port waveform, latency or register semantic, and
+ECP5). The timing restructure (commit a108c41)
+changes no port waveform, latency or register semantic, and
 every check in sections 3.1 to 3.8 was rerun on it. It registers the
 terminal flags of the master counters and decodes the master
 transitions from the current state, latches the slave sampling edge
@@ -336,29 +336,29 @@ installed).
 
 | v1.0 defect | Fix | Covered by |
 |---|---|---|
-| CPHA = 1: MOSI released on the clock edge of the final sampling edge (a synchronizing receiver loses the last bit) | dad7384 | cocotb `test_m_cpha1_last_bit_hold`, `test_t_loopback_cpha1_lastbit`; `make test` test 9; formal `a_mosi_last_bit_hold`; plot `loopback_cpha1_last_bit_mode1.png` |
-| Slave TX FIFO popped twice per word: queued words skipped | 1ec45f9 | cocotb `test_s_prefetch_skip`, slave random run with all words queued, loopback random run; `make test` test 10 |
-| SCK not at CPOL after reset and while idle; it moved in the cycle CS_n fell | 64b26c4 | cocotb `test_m_idle_level`; formal `a_sck_*`, `a_cs_fall_sck_*`; SVA `p_sck_idle_to_cpol`, `p_sck_idle_polarity`, `p_sck_quiet_cs_fall`; plot `master_sck_idle_cpol1_after_reset.png` |
-| `irq_err_o` / IRQ_STAT.err = RX full and done: pulse without loss, one pulse for several lost words | 708bcda | cocotb `test_t_irq`, `test_m_rx_overrun`, `t15_overrun_error_flag`; `make test` test 12 and AXI test 4; formal `a_overrun_strobe` |
-| Slave re-armed in the middle of a frame after a reset with CS_n low | 68854e1 | cocotb `test_s_reset_mid_transfer` |
-| FIFO dropped the write of a read + write on a full FIFO | 0ea07b5 | cocotb `t04_simul_push_pop_at_full`, `t07_random_scoreboard`; formal fifo proofs |
-| CS_n decoded combinationally from the FSM state: glitches | 5b25149 | `make gatelevel` |
-| No synchronizers on the slave SCK / CS_n / MOSI inputs | ade1f14 | cocotb `test_s_ratio_sweep`, `test_s_ratio_sweep_meta`, `test_s_matrix`, `test_s_min_cs_setup`, `test_s_mosi_hold`, `test_s_cs_gap`, `test_x_slave_vs_cocotbext_master` |
-| AXI: CTRL.start taken from the previous CTRL value | d855401 | cocotb `t11_start_bit_semantics`, `t10_e2e_documented_flow`, `t17_write_strobes_on_side_effects`; AXI test 2 |
-| AXI: TX_DATA pushed the previous TX_DATA value | f853d2f | cocotb `t12_tx_data_reaches_mosi`, `t17_write_strobes_on_side_effects`; AXI test 2 |
-| AXI: RX_DATA returned the word popped by the previous read | 70899c4 | cocotb `t13_rx_data_read_returns_head`; AXI test 2 |
-| AXI: IRQ_STAT not readable, write-1-to-clear without effect | 6a628fa | cocotb `t14_irq_status_w1c_and_mask`; AXI test 3 |
-| AXI: err set without data loss | 708bcda | cocotb `t15_overrun_error_flag`; AXI test 4 |
-| FIFO wrong for DEPTH not a power of 2, broken for DEPTH = 1; illegal parameters accepted | 30a7ef3 | cocotb FIFO DEPTH 1..17 and 32 in both read modes; formal fifo DEPTH 1, 2, 3, 5, 12; `make params` |
-| AXI: register decode wrong for DATA_WIDTH = 64 | 1aec5f5 | cocotb `p01_map_and_decode`, `p02_transfer_loopback` at DATA_WIDTH = 64 |
-| NUM_CS = 1 did not elaborate (zero-width cs_sel_i); words above 32 bits truncated counters; master parameters unchecked | 6830dc7 | master suite at NUM_CS = 1 (ci and long), master / slave / loopback suites at W = 64 (long); AXI `p01` / `p02` at NUM_CS = 1; formal `prf_cs1`; `make params` |
-| AXI: parameters the register map cannot hold accepted (CS_DLY_W > 8 put cs_hold bits above bit 31, DATA_WIDTH other than 32 / 64, ...) | 4b6bf6b | `make params` |
-| Slave configuration live during a frame | 8a923e0 | cocotb `test_s_config_latched` |
-| No MISO output enable for a shared MISO line | d76449b | cocotb `test_s_miso_oe`; `make test` per-cycle check |
-| No slave underrun / overrun status | 8585d92 | cocotb `test_s_tx_empty`, `test_s_rx_overrun`; `make test` test 12 |
-| VHDL wrapper missing the FIFO count ports, cs_sel width fixed at 2 | ae2068a | `make vhdl-test` (port-mapping check) |
-| Build and scripts: piped targets passed on failure, `make clean` removed the committed SYNTH_REPORT.md, synth_report parsed an old Yosys format, vhdl-test passed on a mismatch | 085aa0f, d6a3181, f6a49b7, 912e274 | the targets themselves |
-| Testbench did not build on Verilator 5.05x (generated header names, multi-driven coverage bins) | aaf1dae, 61f9b82 | `make lint`, `make test` |
+| CPHA = 1: MOSI released on the clock edge of the final sampling edge (a synchronizing receiver loses the last bit) | a59c75b | cocotb `test_m_cpha1_last_bit_hold`, `test_t_loopback_cpha1_lastbit`; `make test` test 9; formal `a_mosi_last_bit_hold`; plot `loopback_cpha1_last_bit_mode1.png` |
+| Slave TX FIFO popped twice per word: queued words skipped | 534184a | cocotb `test_s_prefetch_skip`, slave random run with all words queued, loopback random run; `make test` test 10 |
+| SCK not at CPOL after reset and while idle; it moved in the cycle CS_n fell | a59c75b | cocotb `test_m_idle_level`; formal `a_sck_*`, `a_cs_fall_sck_*`; SVA `p_sck_idle_to_cpol`, `p_sck_idle_polarity`, `p_sck_quiet_cs_fall`; plot `master_sck_idle_cpol1_after_reset.png` |
+| `irq_err_o` / IRQ_STAT.err = RX full and done: pulse without loss, one pulse for several lost words | a59c75b | cocotb `test_t_irq`, `test_m_rx_overrun`, `t15_overrun_error_flag`; `make test` test 12 and AXI test 4; formal `a_overrun_strobe` |
+| Slave re-armed in the middle of a frame after a reset with CS_n low | 534184a | cocotb `test_s_reset_mid_transfer` |
+| FIFO dropped the write of a read + write on a full FIFO | b218f7d | cocotb `t04_simul_push_pop_at_full`, `t07_random_scoreboard`; formal fifo proofs |
+| CS_n decoded combinationally from the FSM state: glitches | a59c75b | `make gatelevel` |
+| No synchronizers on the slave SCK / CS_n / MOSI inputs | 534184a | cocotb `test_s_ratio_sweep`, `test_s_ratio_sweep_meta`, `test_s_matrix`, `test_s_min_cs_setup`, `test_s_mosi_hold`, `test_s_cs_gap`, `test_x_slave_vs_cocotbext_master` |
+| AXI: CTRL.start taken from the previous CTRL value | 400d288 | cocotb `t11_start_bit_semantics`, `t10_e2e_documented_flow`, `t17_write_strobes_on_side_effects`; AXI test 2 |
+| AXI: TX_DATA pushed the previous TX_DATA value | 400d288 | cocotb `t12_tx_data_reaches_mosi`, `t17_write_strobes_on_side_effects`; AXI test 2 |
+| AXI: RX_DATA returned the word popped by the previous read | 400d288 | cocotb `t13_rx_data_read_returns_head`; AXI test 2 |
+| AXI: IRQ_STAT not readable, write-1-to-clear without effect | 400d288 | cocotb `t14_irq_status_w1c_and_mask`; AXI test 3 |
+| AXI: err set without data loss | a59c75b | cocotb `t15_overrun_error_flag`; AXI test 4 |
+| FIFO wrong for DEPTH not a power of 2, broken for DEPTH = 1; illegal parameters accepted | b218f7d | cocotb FIFO DEPTH 1..17 and 32 in both read modes; formal fifo DEPTH 1, 2, 3, 5, 12; `make params` |
+| AXI: register decode wrong for DATA_WIDTH = 64 | 400d288 | cocotb `p01_map_and_decode`, `p02_transfer_loopback` at DATA_WIDTH = 64 |
+| NUM_CS = 1 did not elaborate (zero-width cs_sel_i); words above 32 bits truncated counters; master parameters unchecked | a59c75b | master suite at NUM_CS = 1 (ci and long), master / slave / loopback suites at W = 64 (long); AXI `p01` / `p02` at NUM_CS = 1; formal `prf_cs1`; `make params` |
+| AXI: parameters the register map cannot hold accepted (CS_DLY_W > 8 put cs_hold bits above bit 31, DATA_WIDTH other than 32 / 64, ...) | 400d288 | `make params` |
+| Slave configuration live during a frame | 534184a | cocotb `test_s_config_latched` |
+| No MISO output enable for a shared MISO line | 534184a | cocotb `test_s_miso_oe`; `make test` per-cycle check |
+| No slave underrun / overrun status | 534184a | cocotb `test_s_tx_empty`, `test_s_rx_overrun`; `make test` test 12 |
+| VHDL wrapper missing the FIFO count ports, cs_sel width fixed at 2 | 7658b3c | `make vhdl-test` (port-mapping check) |
+| Build and scripts: piped targets passed on failure, `make clean` removed the committed SYNTH_REPORT.md, synth_report parsed an old Yosys format, vhdl-test passed on a mismatch | 7658b3c | the targets themselves |
+| Testbench did not build on Verilator 5.05x (generated header names, multi-driven coverage bins) | 7658b3c | `make lint`, `make test` |
 
 ## 5. Interface changes from v1.0
 
