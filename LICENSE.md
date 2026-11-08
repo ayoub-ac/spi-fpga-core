@@ -24,15 +24,17 @@ If that is fine for your project, you are good to go. No fee, no email needed.
 
 ## Commercial license (closed-source / proprietary use)
 
-If you want to use this core in a product whose source is not GPL — for example a closed-source SoC, a commercial FPGA board, an SoC IP catalog, an industrial controller, an automotive ECU, an SDR appliance, or a network appliance — you need a commercial license.
+If you want to use this core in a product whose source is not GPL — for example a closed-source SoC, a commercial FPGA board or an industrial controller — you need a commercial license. It gives you a written grant you can show to your customers and to a due-diligence auditor.
 
-The commercial license:
+Standard terms:
 
-- removes the GPL viral requirement,
-- grants you (and your company) the right to integrate the core into closed-source products,
-- gives you a clear, written grant you can show to your customers and to a due-diligence auditor.
+- **Fee:** USD 500, paid once.
+- **Licensee:** one company or one individual. An individual may transfer the license once, to a company they found.
+- **Scope:** any number of products and units, perpetual and worldwide. You may modify the RTL and ship it inside closed-source FPGA bitstreams and ASICs. You may not resell or redistribute the RTL source as a standalone IP product.
+- **Versions:** the version current on the purchase date and any later version published in this repository.
+- **As is:** no warranty, and no support, maintenance or update obligation. The author's total liability is limited to the fee paid.
 
-Terms (scope, fee, support) are agreed per project. To request a quote, open a GitHub issue with the [commercial license request](https://github.com/ayoub-ac/spi-fpga-core/issues/new?template=commercial-license.yml) form. Do not post confidential details in the issue; the discussion moves to a private channel.
+To buy one, open a [commercial license request](https://github.com/ayoub-ac/spi-fpga-core/issues/new?template=commercial-license.yml). Do not post confidential details in the issue. You receive a signed license agreement and a payment receipt.
 
 ## Trademarks
 

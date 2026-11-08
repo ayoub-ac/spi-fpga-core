@@ -173,6 +173,8 @@ Not verified:
 
 Dual-licensed: **GPL-3.0-or-later** for open-source projects, **commercial license** for closed-source (SPDX: `GPL-3.0-or-later OR LicenseRef-Commercial`). See [`LICENSE.md`](LICENSE.md).
 
+Under either license the core is provided as is, with no support or maintenance commitment.
+
 ## Repository layout
 
 ```

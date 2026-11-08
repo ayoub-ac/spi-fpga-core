@@ -1,11 +1,11 @@
 name: Commercial license request
-description: Ask for a quote for the commercial license (closed-source use).
+description: Buy the commercial license for closed-source use (USD 500, one-time, as is, no support).
 title: "Commercial license request: "
 body:
   - type: markdown
     attributes:
       value: |
-        Terms are agreed per project. Do not post confidential details; we will move to private contact.
+        The standard terms are in [LICENSE.md](https://github.com/ayoub-ac/spi-fpga-core/blob/main/LICENSE.md#commercial-license-closed-source--proprietary-use). Do not post confidential details in this issue.
   - type: input
     id: company
     attributes:

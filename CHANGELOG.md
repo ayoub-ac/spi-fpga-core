@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.1.0 (unreleased)
+## 1.1.0 (2026-11-08)
 
 An independent check of v1.0.0 found the defects below.
 [`VERIFICATION.md`](VERIFICATION.md) §4 maps each defect to its commit
@@ -99,7 +99,9 @@ New ports and parameters:
   (`make pnr`), timing plots (`make waves`), and `make doc-numbers`,
   which regenerates every synthesis and P&R number in the docs.
 - GitHub Actions CI and VERIFICATION.md.
-- A commercial license request form (GitHub issue template).
+- Commercial license terms in LICENSE.md (USD 500 one-time, as is, no
+  support) and a request form (GitHub issue template).
+- COPYING, the full GPL-3.0 text.
 
 ## 1.0.0 (2026-05-09)
 
