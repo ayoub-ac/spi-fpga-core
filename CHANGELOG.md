@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `scripts/vivado_compile.tcl`: out-of-context Vivado compile of one top
+  level. `RESOURCE_ESTIMATES.md` lists the Artix-7 area and Fmax of
+  spi_top and spi_axi4lite.
+
 ## 1.1.0 (2026-11-08)
 
 An independent check of v1.0.0 found the defects below.

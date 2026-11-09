@@ -377,8 +377,11 @@ names are unchanged.
 
 ## 6. Not verified
 
-* Vendor synthesis and implementation (Vivado, Quartus, Diamond, Gowin):
-  not run, no vendor tools available. `make synth_report` skips them.
+* Vendor synthesis and implementation: Quartus, Diamond and Gowin not
+  run. Vivado 2025.2 placed and routed spi_top and spi_axi4lite out of
+  context on Artix-7 (see RESOURCE_ESTIMATES.md), outside CI; there is no
+  timing closure inside a full design. `make synth_report` skips the
+  vendor tools that are not on PATH.
 * Real hardware: no FPGA board test, no logic-analyzer capture, no
   silicon or ASIC flow.
 * Timing closure with real pads: the P&R flow has no pin constraints and
