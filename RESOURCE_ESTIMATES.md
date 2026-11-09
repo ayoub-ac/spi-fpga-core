@@ -5,7 +5,9 @@ nextpnr place-and-route (`make pnr`) for iCE40 and ECP5, Yosys alone
 (`make synth_report`, [`SYNTH_REPORT.md`](SYNTH_REPORT.md)) for Xilinx
 7-series. `make doc-numbers` reruns both and rewrites the measured
 tables in this file, README.md and VERIFICATION.md. This document also
-explains what dominates the area and how to shrink it.
+explains what dominates the area and how to shrink it. The Artix-7
+place-and-route numbers come from Vivado
+([below](#place-and-route-vivado)).
 
 ## Summary
 
@@ -26,7 +28,7 @@ Fmax is the register-to-register limit, without pin constraints or I/O timing.
 |--------------------------------|---------|
 | Lattice iCE40 UP5K             | Placed and routed. Each 16 x 8 FIFO maps to one SB_RAM40_4K block RAM. |
 | Lattice ECP5 LFE5U-25F         | Placed and routed with `synth_ecp5 -abc9`. Each 16 x 8 FIFO maps to two TRELLIS_DPR16X4 LUT RAMs. |
-| Xilinx Artix-7 XC7A35T         | Yosys `synth_xilinx` only (FIFOs to RAM32M), see SYNTH_REPORT.md. Vivado was not run. |
+| Xilinx Artix-7 XC7A35T         | Placed and routed with Vivado 2025.2, out of context, see [below](#place-and-route-vivado). Yosys `synth_xilinx` counts (FIFOs to RAM32M) are in SYNTH_REPORT.md. |
 | Cyclone V 5CSEMA5F31C6         | Not characterised (Quartus not run). |
 | Gowin GW1NR-9 (Tang Nano 9K)   | Not characterised. |
 
@@ -37,6 +39,30 @@ limit, with no pin constraints and no I/O timing. Yosys results depend on
 the source paths, so `scripts/pnr.py` and `synth_report.sh` read the RTL
 through repository-relative paths; the Fmax of a seed also moves with
 unrelated netlist changes, so read the seed range rather than one value.
+
+## Place and route (Vivado)
+
+Vivado ML Standard 2025.2 (Linux), Artix-7 xc7a35tcsg324-1, speed grade
+-1, default parameters. Out-of-context synthesis, then `opt_design`,
+`place_design` and `route_design` with default directives, a 3.0 ns clock
+constraint on `clk_i` (`s_axi_aclk` for spi_axi4lite) and no I/O
+constraints. Fmax is 1000 / (3.0 - WNS) from the routed design, register
+to register. Out of context the clock source is not known (`HD.CLK_SRC`
+is unset), so clock skew is not estimated; inside a full design the
+result can differ. No block RAM or DSP is used: the FIFOs map to LUT RAM.
+Each result was reproduced by an identical second run.
+
+| Design | LUT (as memory) | FF | Slices | WNS | Fmax |
+|---|---|---|---|---|---|
+| spi_top | 260 (24) | 228 | 91 | -0.712 ns | 269.40 MHz |
+| spi_axi4lite | 374 (12) | 553 | 165 | -0.352 ns | 298.33 MHz |
+
+The result depends on the constraint: with a 4.0 ns constraint spi_top
+routes in 227 LUT at 243.01 MHz. Reproduce from an empty directory with
+`vivado -mode batch -source <repo>/scripts/vivado_compile.tcl -tclargs <repo>/rtl spi_top`;
+the part, the clock period and the clock port are optional third to
+fifth arguments (spi_axi4lite: `xc7a35tcsg324-1 3.0 s_axi_aclk`).
+`make doc-numbers` does not run Vivado.
 
 ## What dominates the area
 
@@ -77,7 +103,10 @@ inter-word gap stays the same, so the per-word overhead amortises.
 
 * iCE40 UP5K and ECP5: see the table above. Neither is a timing sign-off:
   no pin constraints, no I/O timing, no vendor timing analysis.
-* Artix-7, Cyclone V, Gowin: not measured (no vendor tools available).
+* Artix-7: 269 MHz (spi_top) and 298 MHz (spi_axi4lite) out of context
+  with Vivado, see [Place and route (Vivado)](#place-and-route-vivado).
+  Not a timing sign-off either: no I/O constraints, no clock skew.
+* Cyclone V, Gowin: not measured (no vendor tools available).
 
 The slave samples SCK, CS_n and MOSI through 2-FF synchronizers, so its
 SCK period must be at least 4 clk_i periods plus the slave

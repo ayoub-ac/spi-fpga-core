@@ -91,8 +91,11 @@ Fmax is the register-to-register limit, without pin constraints or I/O timing.
 
 Yosys-only counts, Xilinx 7-series included, are in
 [`SYNTH_REPORT.md`](SYNTH_REPORT.md); [`RESOURCE_ESTIMATES.md`](RESOURCE_ESTIMATES.md)
-explains what dominates the area. Vendor tools (Vivado, Quartus, Diamond,
-Gowin) were not run.
+explains what dominates the area. Vivado 2025.2 places and routes both
+designs out of context on an Artix-7 xc7a35t-1, register to register:
+spi_top 260 LUT at 269 MHz, spi_axi4lite 374 LUT at 298 MHz
+([`RESOURCE_ESTIMATES.md`](RESOURCE_ESTIMATES.md#place-and-route-vivado)).
+Quartus, Diamond and Gowin were not run.
 
 ## Build & test
 
@@ -157,11 +160,13 @@ Verified (details in [`VERIFICATION.md`](VERIFICATION.md)):
   random gate delays; `spi_fifo` against its iCE40 block-RAM netlist.
 - Open-source synthesis and place-and-route (Yosys, nextpnr) for iCE40
   UP5K and ECP5-25, without pin constraints or I/O timing.
+- Vivado 2025.2 out-of-context place and route on Artix-7, without I/O
+  constraints (not in CI).
 
 Not verified:
 
-- Vendor tools (Vivado, Quartus, Diamond, Gowin): no synthesis,
-  implementation or timing closure.
+- Quartus, Diamond and Gowin: no synthesis or implementation. Vivado:
+  no timing closure inside a full design with real I/O.
 - Real hardware: no FPGA board test, no silicon or ASIC flow.
 - Gate-level timing with vendor cell models or SDF.
 - Metastability MTBF and CDC sign-off of the slave synchronizers.
